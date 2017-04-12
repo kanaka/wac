@@ -496,6 +496,9 @@ if __name__ == "__main__":
             elif re.match("^\(assert_return_nan\\b.*", form):
                 log("ignoring assert_return_nan")
                 pass
+            elif re.match(".*\(invoke\s+\$\\b.*", form):
+                log("ignoring invoke $FOO")
+                pass
 
             elif re.match("^\(module\\b.*", form):
                 log("Writing WAST module to '%s'" % wast_tempfile)

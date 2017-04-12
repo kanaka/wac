@@ -2,6 +2,7 @@
 #define WAC_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #define WA_MAGIC   0x6d736100
 #define WA_VERSION 0x01
@@ -57,7 +58,7 @@ typedef struct Block {
     char      *export_name;   // function only (exported)
     char      *import_module; // function only (imported)
     char      *import_field;  // function only (imported)
-    void     (*func_ptr)();   // function only (imported)
+    void      *(*func_ptr)(); // function only (imported)
 } Block;
 
 ///
@@ -77,12 +78,28 @@ typedef struct StackValue {
 typedef struct Frame {
     Block      *block;
     // Saved state
-    int         sp;   
+    int         sp;
     int         fp;
     uint32_t    ra;
 } Frame;
 
 ///
+
+typedef struct Table {
+    uint8_t     elem_type; // type of entries (only ANYFUNC in MVP)
+    uint32_t    initial;   // initial table size
+    uint32_t    maximum;   // maximum table size
+    uint32_t    size;      // current table size
+    uint32_t   *entries;
+} Table;
+
+typedef struct Memory {
+    uint32_t    initial;  // initial size (64K pages)
+    uint32_t    maximum;  // maximum size (64K pages)
+    uint32_t    pages;    // current size (64K pages)
+    uint8_t    *bytes;    // memory area
+} Memory;
+
 
 typedef struct Module {
     char       *path;           // file path of the wasm module
@@ -91,6 +108,7 @@ typedef struct Module {
 
     uint32_t    type_count;     // number of function types
     Type       *types;          // function types
+
     uint32_t    import_count;   // number of leading imports in functions
     uint32_t    function_count; // number of function (including imports)
     Block      *functions;      // imported and locally defined functions
@@ -98,32 +116,30 @@ typedef struct Module {
                                 // same length as byte_count
     uint32_t    start_function; // function to run on module load
 
-    uint32_t    table_initial;  // initial table size
-    uint32_t    table_maximum;  // maximum table size
-    uint32_t   *table;          // table entries
+    Table       table;
+
+    Memory      memory;
 
     uint32_t    global_count;   // number of globals
     StackValue *globals;        // globals
 
-    uint32_t    memory_initial;  // 64K pages
-    uint32_t    memory_maximum;  // 64K pages
-    uint32_t    memory_pages;    // 64K pages
-    uint8_t    *memory;          // memory area
-
     // Runtime state
     int         sp;                // operand stack pointer
     int         fp;                // current frame pointer into stack
-    StackValue  stack[STACK_SIZE]; // main operand stack 
+    StackValue  stack[STACK_SIZE]; // main operand stack
     int         csp;               // callstack pointer
     Frame       callstack[CALLSTACK_SIZE]; // callstack
 } Module;
 
 //
-// Function declarations
+// Function declarations (Public API)
 //
 
+extern char exception[];
+char *value_repr(StackValue *v);
+uint32_t get_export_fidx(Module *m, char *name);
+bool call_function32(Module *m, uint32_t fidx, uint32_t *res);
 Module *load_module(char *path);
-uint32_t invoke(Module *m, int argc, char **argv);
-
+bool invoke(Module *m, char *entry, int argc, char **argv);
 
 #endif // of WAC_H

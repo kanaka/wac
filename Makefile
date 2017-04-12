@@ -16,6 +16,12 @@ endif
 %.o: %.c
 	$(CC) -c $(filter %.c,$^) -o $@
 
+test/%.js: test/%.c
+	emcc -s WASM=1 $< -o $@
+
+test/%.html: test/%.c
+	emcc -s WASM=1 $< -o $@
+
 # Additional dependencies
 util.o: util.h
 wa.o: wa.h util.h
@@ -27,10 +33,10 @@ wa.a: util.o
 wac: wac.c wa.a
 	$(CC) -rdynamic wac.c wa.a -o $@ -lm -ldl -l$(RL_LIBRARY)
 
-wac-em: wac.c em.o wa.a
-	$(CC) -rdynamic wac.c wa.a em.o -o $@ -lm -ldl -l$(RL_LIBRARY)
+wace: wace.c wa.a
+	$(CC) -rdynamic wace.c wa.a -o $@ -lm -ldl -l$(RL_LIBRARY)
 
 
 .PHONY:
 clean:
-	rm -f *.o *.a wac wac-em
+	rm -f *.o *.a wac wace

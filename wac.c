@@ -13,11 +13,10 @@
 #include "util.h"
 #include "wa.h"
 
-void usage() {
-    fprintf(stderr, "./wac [--debug] WASM_FILE [--repl|-- ARG...]\n");
+void usage(char *prog) {
+    fprintf(stderr, "%s [--debug] WASM_FILE [--repl|-- ARG...]\n", prog);
     exit(2);
 }
-
 
 // Special test imports
 uint32_t _spectest__global_ = 666;
@@ -27,8 +26,9 @@ void _spectest__print_(uint32_t val) {
     printf("0x%x:i32\n", val);
 }
 
+
 int main(int argc, char **argv) {
-    char   *mod_path, *line;
+    char   *mod_path, *entry, *line;
     int     repl = 0, debug = 0, res = 0;
 
     // Parse arguments
@@ -42,11 +42,11 @@ int main(int argc, char **argv) {
                              long_options, &option_index)) != -1) {
         switch (c) {
         case 0: break;
-        case '?': usage(); break;
-        default: usage();
+        case '?': usage(argv[0]); break;
+        default: usage(argv[0]);
         }
     }
-    if (optind >= argc) { usage(); }
+    if (optind >= argc) { usage(argv[0]); }
     mod_path = argv[optind++];
 
     if (debug) {
@@ -59,18 +59,33 @@ int main(int argc, char **argv) {
 
     if (!repl) {
         // Invoke one function and exit
-        res = invoke(m, argc-optind, argv+optind);
+        res = invoke(m, argv[optind], argc-optind-1, argv+optind+1);
+        if (res) {
+	    if (m->sp >= 0) {
+		printf("%s\n", value_repr(&m->stack[m->sp]));
+	    }
+        } else {
+	    error("Exception: %s\n", exception);
+	    exit(1);
+	}
     } else {
         // Simple REPL
-        if (optind < argc) { usage(); }
+        if (optind < argc) { usage(argv[0]); }
         while (line = readline("webassembly> ")) {
             int token_cnt = 0;
             char **tokens = split_string(line, &token_cnt);
             if (token_cnt == 0) { continue; }
 
-            res = invoke(m, token_cnt, tokens);
+            res = invoke(m, tokens[0], token_cnt-1, tokens+1);
+	    if (res) {
+		if (m->sp >= 0) {
+		    printf("%s\n", value_repr(&m->stack[m->sp]));
+		}
+	    } else {
+		error("Exception: %s\n", exception);
+	    }
             free(tokens);
         }
     }
-    exit(res);
+    exit(0);
 }

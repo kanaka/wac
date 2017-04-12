@@ -1,4 +1,7 @@
 *.o
 *.a
 wac
-wac-em
+wace
+test/*.js
+test/*.html
+test/*.wasm

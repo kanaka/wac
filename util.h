@@ -5,6 +5,16 @@
 #include <stdlib.h>
 #include <stdint.h>
 
+#define TRACE 0
+#define DEBUG 0
+#define INFO 0
+#define WARN 0
+
+//#define TRACE 1
+//#define DEBUG 1
+//#define INFO 1
+//#define WARN 1
+
 #define FATAL(...) { \
     fprintf(stderr, "Error(%s:%d): ", __FILE__, __LINE__); \
     fprintf(stderr, __VA_ARGS__); exit(1); \
@@ -12,7 +22,7 @@
 
 #define ASSERT(exp, ...) { \
     if (! (exp)) { \
-        fprintf(stderr, "Assert Failed (%s:%d: ", __FILE__, __LINE__); \
+        fprintf(stderr, "Assert Failed (%s:%d): ", __FILE__, __LINE__); \
         fprintf(stderr, __VA_ARGS__); exit(1); \
     } \
 }
@@ -33,6 +43,12 @@
 #define info(...) fprintf(stderr, __VA_ARGS__);
 #else
 #define info(...) ;
+#endif
+
+#if WARN
+#define warn(...) fprintf(stderr, __VA_ARGS__);
+#else
+#define warn(...) ;
 #endif
 
 #define error(...) fprintf(stderr, __VA_ARGS__);
