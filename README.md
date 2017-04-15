@@ -111,10 +111,10 @@ Check out the spec:
 git clone https://github.com/WebAssembly/spec
 ```
 
-Run the function test file from the spec:
+Run the function (`func.wast`) test file from the spec:
 
 ```
-./runtest.py --wast2wasm /path/to/wast2wasm --interpreter ./wac spec/test/core/block.wast
+./runtest.py --wast2wasm /path/to/wast2wasm --interpreter ./wac spec/test/core/func.wast
 ```
 
 
