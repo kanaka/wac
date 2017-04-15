@@ -2,6 +2,8 @@
 *.a
 wac
 wace
-test/*.js
-test/*.html
-test/*.wasm
+examples_c/*.js
+examples_c/*.html
+examples_c/*.wasm
+examples_c/*.wast
+examples_wast/*.wasm

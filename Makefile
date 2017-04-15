@@ -16,23 +16,28 @@ endif
 %.o: %.c
 	$(CC) -c $(filter %.c,$^) -o $@
 
-# Test build rules
-test/%.js: test/%.c
+# C example build rules
+examples_c/%.js: examples_c/%.c
 	emcc -s WASM=1 -s RELOCATABLE=1 -O2 -s USE_SDL=2 $< -o $@
 
-test/%.html: test/%.c
+examples_c/%.html: examples_c/%.c
 	emcc -s WASM=1 -s RELOCATABLE=1 -O2 -s USE_SDL=2 $< -o $@
 
-test/%: test/%.c
+examples_c/%: examples_c/%.c
 	$(CC) $< -o $@ -lSDL2
 
 .SECONDARY:
-test/%.wasm: test/%.js
+examples_c/%.wasm: examples_c/%.js
 	@true
 
 .SECONDARY:
-test/%.wast: test/%.wasm
+examples_c/%.wast: examples_c/%.wasm
 	wasm2wast $< -o $@
+
+
+# Wast example build rules
+examples_wast/%.wasm: examples_wast/%.wast
+	wast2wasm $< -o $@
 
 
 # Additional dependencies
@@ -52,4 +57,7 @@ wace: wace.c wa.a em.o
 
 .PHONY:
 clean:
-	rm -f *.o *.a wac wace wace-sdl.c test/*.js test/*.html test/*.wasm
+	rm -f *.o *.a wac wace wace-sdl.c \
+	    examples_c/*.js examples_c/*.html \
+	    examples_c/*.wasm examples_c/*.wast \
+	    examples_wast/*.wasm

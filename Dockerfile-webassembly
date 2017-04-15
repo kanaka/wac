@@ -1,33 +1,30 @@
 FROM trzeci/emscripten:sdk-incoming-64bit
 MAINTAINER Joel Martin <github@martintribe.org>
 
-RUN apt-get update && \
-    apt-get -y install git-core cmake g++
+RUN dpkg --add-architecture i386 && \
+    apt-get -y update && \
+    apt-get -y install git-core cmake g++ \
+        lib32gcc-4.9-dev libSDL2-dev:i386 libedit-dev:i386
 
 RUN git clone https://github.com/WebAssembly/binaryen/ && \
     cd binaryen && \
     cmake . && make && \
     make install
 
+ADD library.js.patch library.js.patch
+
 RUN echo 'BINARYEN_ROOT="/usr/local"' >> /root/.emscripten && \
     echo 'RELOCATABLE=""' >> /root/.emscripten && \
     rm -r /root/.emscripten_cache* && \
     echo "int main() {}" > /tmp/nop.c && \
     emcc -s BINARYEN=1 /tmp/nop.c -o /tmp/nop.js && \
-    rm /tmp/nop*
+    rm /tmp/nop* && \
+    patch -b -p1 /emsdk_portable/emscripten/incoming/src/library.js < library.js.patch
 
 RUN git clone --recursive https://github.com/WebAssembly/wabt/ && \
     cd wabt && \
     make gcc-release && \
-    make install-gcc-release
+    make install-gcc-release && \
+    cp /src/wabt/bin/* /usr/local/bin/
 
-# Combine all this above
-
-RUN dpkg --add-architecture i386 && \
-    apt-get -y update && \
-    apt-get -y install lib32gcc-4.9-dev libSDL2-dev:i386
-
-RUN cp /src/wabt/bin/* /usr/local/bin/
-
-RUN apt-get -y install libedit-dev:i386
 
