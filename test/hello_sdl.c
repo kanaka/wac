@@ -6,6 +6,7 @@
 
 int main()
 {
+  SDL_LogSetAllPriority(SDL_LOG_PRIORITY_DEBUG);
   SDL_Init(SDL_INIT_VIDEO);
 
   SDL_Window *window;

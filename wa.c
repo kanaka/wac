@@ -496,98 +496,160 @@ Block *pop_block(Module *m, uint32_t *pc) {
     return frame->block;
 }
 
+//
+// Thunks
+//
+// thunk_1_0  : I32 return, no arguments
+// thunk_2_34 : I64 return, arguments: (F32, F64)
+
+void thunk_1_0(Module *m, Block *function, Type *type) {
+    uint32_t res = (uint32_t)function->func_ptr();
+    m->sp += 1;
+    m->stack[m->sp].value_type = I32;
+    m->stack[m->sp].value.uint32 = res;
+}
+
+void thunk_1_1(Module *m, Block *function, Type *type) {
+    uint32_t res = (uint32_t)function->func_ptr(m->stack[m->sp].value.uint32);
+    m->stack[m->sp].value_type = I32;
+    m->stack[m->sp].value.uint32 = res;
+}
+
+void thunk_1_11(Module *m, Block *function, Type *type) {
+    uint32_t res = (uint32_t)function->func_ptr(m->stack[m->sp-1].value.uint32,
+                                                m->stack[m->sp].value.uint32);
+    m->sp -= 1;
+    m->stack[m->sp].value_type = I32;
+    m->stack[m->sp].value.uint32 = res;
+}
+
+void thunk_1_111(Module *m, Block *function, Type *type) {
+    uint32_t res = (uint32_t)function->func_ptr(m->stack[m->sp-2].value.uint32,
+                                                m->stack[m->sp-1].value.uint32,
+                                                m->stack[m->sp].value.uint32);
+    m->sp -= 2;
+    m->stack[m->sp].value_type = I32;
+    m->stack[m->sp].value.uint32 = res;
+}
+
+void thunk_1_1111(Module *m, Block *function, Type *type) {
+    uint32_t res = (uint32_t)function->func_ptr(m->stack[m->sp-3].value.uint32,
+                                                m->stack[m->sp-2].value.uint32,
+                                                m->stack[m->sp-1].value.uint32,
+                                                m->stack[m->sp].value.uint32);
+    m->sp -= 3;
+    m->stack[m->sp].value_type = I32;
+    m->stack[m->sp].value.uint32 = res;
+}
+
+void thunk_1_11111(Module *m, Block *function, Type *type) {
+    uint32_t res = (uint32_t)function->func_ptr(m->stack[m->sp-4].value.uint32,
+                                                m->stack[m->sp-3].value.uint32,
+                                                m->stack[m->sp-2].value.uint32,
+                                                m->stack[m->sp-1].value.uint32,
+                                                m->stack[m->sp].value.uint32);
+    m->sp -= 4;
+    m->stack[m->sp].value_type = I32;
+    m->stack[m->sp].value.uint32 = res;
+}
+
+void thunk_0_11(Module *m, Block *function, Type *type) {
+    function->func_ptr(m->stack[m->sp-1].value.uint32,
+                       m->stack[m->sp].value.uint32);
+    m->sp -= 2;
+}
+
+void thunk_1_4(Module *m, Block *function, Type *type) {
+    uint32_t res = (uint32_t)function->func_ptr(m->stack[m->sp].value.f64);
+    m->stack[m->sp].value_type = I32;
+    m->stack[m->sp].value.uint32 = res;
+}
+
+// Call/thunk an imported function
+void thunk(Module *m, uint32_t fidx) {
+    Block *func = &m->functions[fidx];
+    Type  *type = func->type;
+    uint32_t  thunk_mask = 0x80;
+    if (TRACE) {
+        warn("  >>> thunk 0x%x(%d) %s.%s(",
+             func->fidx, func->fidx,
+             func->import_module, func->import_field);
+        for (int p=type->param_count-1; p >= 0; p--) {
+            warn("%s%s", value_repr(&m->stack[m->sp-p]), p ? " " : "");
+        }
+        warn("), %d results\n", type->result_count);
+    }
+    //dump_stacks(m);
+
+    if (type->result_count == 1) {
+        thunk_mask += 0x80 - type->results[0];
+    }
+    thunk_mask = thunk_mask << 4;
+    for(int p=0; p<type->param_count; p++) {
+        thunk_mask = thunk_mask << 4;
+        thunk_mask += 0x80 - type->params[p];
+    }
+
+    if (TRACE) {
+        debug("      thunk_mask: 0x%x\n", thunk_mask);
+    }
+    switch (thunk_mask) {
+    case 0x810      : thunk_1_0     (m, func, type); break;
+    case 0x8101     : thunk_1_1     (m, func, type); break;
+    case 0x81011    : thunk_1_11    (m, func, type); break;
+    case 0x810111   : thunk_1_111   (m, func, type); break;
+    case 0x8101111  : thunk_1_1111  (m, func, type); break;
+    case 0x81011111 : thunk_1_11111 (m, func, type); break;
+    case 0x80011    : thunk_0_11    (m, func, type); break;
+    case 0x8104     : thunk_1_4     (m, func, type); break;
+    default: FATAL("unsupported thunk mask 0x%x\n", thunk_mask);
+    }
+
+    //dump_stacks(m);
+
+    if (TRACE) {
+        warn("  <<< thunk 0x%x(%d) %s.%s = %s\n",
+             func->fidx, func->fidx, func->import_module, func->import_field,
+             type->result_count > 0 ? value_repr(&m->stack[m->sp]) : "_");
+    }
+}
+
 
 // Call a function
 // Push params and locals on the stack and save a call frame on the call stack
 // Returns new pc value for the start of the function
 void do_call(Module *m, uint32_t fidx, uint32_t *pc) {
-    Block  *function = &m->functions[fidx];
-    Type   *type     = function->type;
+    Block  *func = &m->functions[fidx];
+    Type   *type = func->type;
 
-    if (fidx < m->import_count) {
-        uint32_t a32=0, b32=1, c32=2, d32=3,
-                 e32=4, f32=5, g32=6, h32=7, r32;
-        if (TRACE) {
-            warn("  >>> import 0x%x(%d) %s.%s(",
-                 fidx, fidx, function->import_module, function->import_field);
-            for (int p=type->param_count-1; p >= 0; p--) {
-                warn("%s%s", value_repr(&m->stack[m->sp-p]), p ? " " : "");
-            }
-            warn("), %d results\n", type->result_count);
-        }
-        if (type->param_count == 0) {
-            // no params
-        } else if (type->param_count == 1 &&
-            type->params[0] == I32) {
-            a32 = m->stack[m->sp].value.uint32;
-            m->sp -= 1;
-        } else if (type->param_count == 2 &&
-                   type->params[0] == I32 &&
-                   type->params[1] == I32) {
-            a32 = m->stack[m->sp-1].value.uint32;
-            b32 = m->stack[m->sp].value.uint32;
-            m->sp -= 2;
-        } else if (type->param_count == 3 &&
-                   type->params[0] == I32 &&
-                   type->params[1] == I32 &&
-                   type->params[2] == I32) {
-            a32 = m->stack[m->sp-2].value.uint32;
-            b32 = m->stack[m->sp-1].value.uint32;
-            c32 = m->stack[m->sp].value.uint32;
-            m->sp -= 3;
-        } else {
-            FATAL("Unsupported import call param types for '%s.%s'\n",
-                  function->import_module, function->import_field);
-        }
-        if (type->result_count == 0) {
-            function->func_ptr(a32, b32, c32, d32, e32, f32, f32, h32);
-        } else if (type->result_count == 1 &&
-                   type->results[0] == I32) {
-            r32 = (uint32_t)function->func_ptr(a32, b32, c32, d32,
-                                               e32, f32, f32, h32);
-            m->stack[++m->sp].value_type = I32;
-            m->stack[m->sp].value.uint32 = r32;
-        } else {
-            FATAL("Unsupported import call return type for '%s.%s'\n",
-                  function->import_module, function->import_field);
-        }
-        if (TRACE) {
-            warn("  <<< import 0x%x(%d) %s.%s = %s\n",
-                 fidx, fidx, function->import_module, function->import_field,
-                 function->type->result_count > 0 ?
-                   value_repr(&m->stack[m->sp]) :
-                   "_");
-        }
-    } else {
-        // Push current frame on the call stack
-        push_block(m, function, m->sp - type->param_count, *pc);
+    // Push current frame on the call stack
+    push_block(m, func, m->sp - type->param_count, *pc);
 
-        if (TRACE) {
-            warn("  >> fn0x%x(%d) %s(",
-                 fidx, fidx, function->export_name ? function->export_name : "");
-            for (int p=type->param_count-1; p >= 0; p--) {
-                warn("%s%s", value_repr(&m->stack[m->sp-p]),
-                     p ? " " : "");
-            }
-            warn("), %d locals, %d results\n",
-                 function->local_count, type->result_count);
+    if (TRACE) {
+        warn("  >> fn0x%x(%d) %s(",
+             fidx, fidx, func->export_name ? func->export_name : "");
+        for (int p=type->param_count-1; p >= 0; p--) {
+            warn("%s%s", value_repr(&m->stack[m->sp-p]),
+                 p ? " " : "");
         }
-
-        // Push locals (dropping extras)
-        m->fp = m->sp - type->param_count + 1;
-        // TODO: validate arguments vs formal params
-
-        // Push function locals
-        for (uint32_t lidx=0; lidx<function->local_count; lidx++) {
-            m->sp += 1;
-            m->stack[m->sp].value_type = function->locals[lidx];
-            m->stack[m->sp].value.uint64 = 0; // Initialize whole union to 0
-        }
-
-        // Return function start as new program counter
-        *pc = function->start_addr;
-        return;
+        warn("), %d locals, %d results\n",
+             func->local_count, type->result_count);
     }
+
+    // Push locals (dropping extras)
+    m->fp = m->sp - type->param_count + 1;
+    // TODO: validate arguments vs formal params
+
+    // Push function locals
+    for (uint32_t lidx=0; lidx<func->local_count; lidx++) {
+        m->sp += 1;
+        m->stack[m->sp].value_type = func->locals[lidx];
+        m->stack[m->sp].value.uint64 = 0; // Initialize whole union to 0
+    }
+
+    // Return function start as new program counter
+    *pc = func->start_addr;
+    return;
 }
 
 bool interpret(Module *m, uint32_t *pc) {
@@ -750,10 +812,13 @@ bool interpret(Module *m, uint32_t *pc) {
         case 0x10:  // call
             fidx = read_LEB(bytes, pc, 32);
 
-            // TODO: function import
-            do_call(m, fidx, pc);
-            if (TRACE) {
-                debug("      - calling function fidx: %d at: 0x%x\n", fidx, *pc);
+            if (fidx < m->import_count) {
+                thunk(m, fidx);        // import/thunk call
+            } else {
+                do_call(m, fidx, pc);  // regular function call
+                if (TRACE) {
+                    debug("      - calling function fidx: %d at: 0x%x\n", fidx, *pc);
+                }
             }
             continue;
         case 0x11:  // call_indirect
@@ -766,27 +831,30 @@ bool interpret(Module *m, uint32_t *pc) {
             }
 
             fidx = m->table.entries[val];
-            Block *func = &m->functions[fidx];
-            Type *ftype = func->type;
 
-            // TODO: function import
-            do_call(m, fidx, pc);
+            if (fidx < m->import_count) {
+                thunk(m, fidx);        // import/thunk call
+            } else {
+                do_call(m, fidx, pc);  // regular function call
 
-            // Validate signatures match
-            if (ftype->param_count + func->local_count != m->sp - m->fp + 1) {
-                sprintf(exception, "indirect call signature mismatch");
-                return false;
-            }
-            for (uint32_t f=0; f<ftype->param_count; f++) {
-                if (ftype->params[f] != m->stack[m->fp+f].value_type) {
+                Block *func = &m->functions[fidx];
+                Type *ftype = func->type;
+                // Validate signatures match
+                if (ftype->param_count + func->local_count != m->sp - m->fp + 1) {
                     sprintf(exception, "indirect call signature mismatch");
                     return false;
                 }
-            }
+                for (uint32_t f=0; f<ftype->param_count; f++) {
+                    if (ftype->params[f] != m->stack[m->fp+f].value_type) {
+                        sprintf(exception, "indirect call signature mismatch");
+                        return false;
+                    }
+                }
 
-            if (TRACE) {
-                debug("      - table idx: %d, calling function fidx: %d at: 0x%x\n",
-                      val, fidx, *pc);
+                if (TRACE) {
+                    debug("      - table idx: %d, calling function fidx: %d at: 0x%x\n",
+                        val, fidx, *pc);
+                }
             }
             continue;
 

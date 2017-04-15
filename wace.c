@@ -66,6 +66,16 @@ int emscripten_init() {
     _env__STACK_MAX_ = _env__STACKTOP_ + TOTAL_STACK;
 
     *(uint32_t *)_env__DYNAMICTOP_PTR_ = (uint32_t)_env__STACK_MAX_;
+
+    info("emscripten_init results:\n");
+    info("  _env__memory_: %p (0x%x)\n", _env__memory_, _env__memory_);
+    info("  _env__memoryBase_: %p\n", _env__memoryBase_);
+    info("  _env__table_: %p, _env__tableBase_: %p\n", _env__table_, _env__tableBase_);
+    info("  STACK_MAX: %p\n", _env__STACK_MAX_);
+    info("  DYNAMICTOP_PTR: %p, *DYNAMICTOP_PTR: %p\n",
+            _env__DYNAMICTOP_PTR_, *(uint32_t *)_env__DYNAMICTOP_PTR_);
+    info("  gb: 0x%x (%d), fb: 0x%x (%d)\n", gb, gb, fb, fb);
+
 }
 
 /////////////////////////////////////////////////////////
@@ -211,7 +221,7 @@ uint32_t ___syscall221(uint32_t which, uint32_t *varargs) {
 // Some emscripten utilities
 
 uint32_t _asm2wasm__f64_to_int_(double a) {
-    FATAL("f64-to-int not implemented.\n");
+    return (uint32_t)a;
 }
 
 uint32_t getTotalMemory() {
@@ -268,11 +278,6 @@ int main(int argc, char **argv) {
     // Load the module
     Options opts = { .disable_memory_bounds=true };
     Module *m = load_module(mod_path, opts);
-
-    warn("  - _env__memory_: %p, _env__memoryBase_: %p\n", _env__memory_, _env__memoryBase_);
-    warn("  - _env__table_: %p, _env__tableBase_: %p\n", _env__table_, _env__tableBase_);
-    warn("  - _env__DYNAMICTOP_PTR_: 0x%x (%d)\n", _env__DYNAMICTOP_PTR_, _env__DYNAMICTOP_PTR_);
-    warn("  - gb: 0x%x (%d), fb: 0x%x (%d)\n", gb, gb, fb, fb);
 
     // TODO: setup argc/argv
 

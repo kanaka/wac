@@ -54,6 +54,8 @@
 #define warn(...) ;
 #endif
 
+#define log(...) fprintf(stderr, __VA_ARGS__);
+
 #define error(...) fprintf(stderr, __VA_ARGS__);
 
 
