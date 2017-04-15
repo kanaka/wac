@@ -470,9 +470,6 @@ if __name__ == "__main__":
 
     (t1fd, wast_tempfile) = tempfile.mkstemp(suffix=".wast")
     (t2fd, wasm_tempfile) = tempfile.mkstemp(suffix=".wasm")
-    log("wast_tempfile: '%s'" % wast_tempfile)
-    log("wasm_tempfile: '%s'" % wasm_tempfile)
-
 
     try:
         forms = read_forms(opts.test_file.read())
