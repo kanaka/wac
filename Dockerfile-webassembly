@@ -4,18 +4,10 @@ MAINTAINER Joel Martin <github@martintribe.org>
 RUN apt-get update && \
     apt-get -y install git-core cmake g++
 
-## Download and build binaryen into emscripten ports/cache
-#RUN rm -r /root/.emscripten_cache* && \
-#    echo "int main() {}" > /tmp/nop.c && \
-#    emcc -s BINARYEN=1 /tmp/nop.c -o /tmp/nop.js && \
-#    rm /tmp/nop.c /tmp/nop.js
-
 RUN git clone https://github.com/WebAssembly/binaryen/ && \
     cd binaryen && \
     cmake . && make && \
     make install
-
-#    git checkout version_14
 
 RUN echo 'BINARYEN_ROOT="/usr/local"' >> /root/.emscripten && \
     echo 'RELOCATABLE=""' >> /root/.emscripten && \
@@ -24,11 +16,18 @@ RUN echo 'BINARYEN_ROOT="/usr/local"' >> /root/.emscripten && \
     emcc -s BINARYEN=1 /tmp/nop.c -o /tmp/nop.js && \
     rm /tmp/nop*
 
+RUN git clone --recursive https://github.com/WebAssembly/wabt/ && \
+    cd wabt && \
+    make gcc-release && \
+    make install-gcc-release
 
-# Version 0x0d:
-#   c5ab566cc3343d3b9e07eab4855b0dbfb2c81afe
-#   Oct 26, 2016
+# Combine all this above
 
-# --mem-base
-#   c8eccc4ceb1d538fc394578c23ba87bb50835b3f
-#   Oct 31, 2016
+RUN dpkg --add-architecture i386 && \
+    apt-get -y update && \
+    apt-get -y install lib32gcc-4.9-dev libSDL2-dev:i386
+
+RUN cp /src/wabt/bin/* /usr/local/bin/
+
+RUN apt-get -y install libedit-dev:i386
+

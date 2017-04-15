@@ -100,9 +100,15 @@ typedef struct Memory {
     uint8_t    *bytes;    // memory area
 } Memory;
 
+typedef struct Options {
+    bool        disable_memory_bounds;
+} Options;
+
 
 typedef struct Module {
     char       *path;           // file path of the wasm module
+    Options     options;        // Config options
+
     uint32_t    byte_count;     // number of bytes in the module
     uint8_t    *bytes;          // module content/bytes
 
@@ -139,7 +145,7 @@ extern char exception[];
 char *value_repr(StackValue *v);
 uint32_t get_export_fidx(Module *m, char *name);
 bool call_function32(Module *m, uint32_t fidx, uint32_t *res);
-Module *load_module(char *path);
+Module *load_module(char *path, Options opts);
 bool invoke(Module *m, char *entry, int argc, char **argv);
 
 #endif // of WAC_H

@@ -1,0 +1,12 @@
+--- src/library.js.orig	2017-04-14 23:46:29.347736498 -0500
++++ src/library.js	2017-04-14 23:47:46.636731963 -0500
+@@ -472,7 +472,8 @@ LibraryManager.library = {
+     newDynamicTop = oldDynamicTop + increment | 0;
+ 
+     if (((increment|0) > 0 & (newDynamicTop|0) < (oldDynamicTop|0)) // Detect and fail if we would wrap around signed 32-bit int.
+-      | (newDynamicTop|0) < 0) { // Also underflow, sbrk() should be able to be used to subtract.
++//      | (newDynamicTop|0) < 0) { // Also underflow, sbrk() should be able to be used to subtract.
++      ) {
+ #if ABORTING_MALLOC
+       abortOnCannotGrowMemory()|0;
+ #endif

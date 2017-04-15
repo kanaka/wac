@@ -5,7 +5,6 @@
 #include <string.h>
 #include <stdbool.h>
 #include <math.h>
-#include <dlfcn.h>
 
 #include "util.h"
 #include "wa.h"
@@ -272,7 +271,7 @@ char _value_str[256];
 char *value_repr(StackValue *v) {
     switch (v->value_type) {
     case I32: snprintf(_value_str, 255, "0x%x:i32",  v->value.uint32); break;
-    case I64: snprintf(_value_str, 255, "0x%lx:i64", v->value.uint64); break;
+    case I64: snprintf(_value_str, 255, "0x%llx:i64", v->value.uint64); break;
     case F32: snprintf(_value_str, 255, "%.7g:f32",  v->value.f32);    break;
     case F64: snprintf(_value_str, 255, "%.7g:f64",  v->value.f64);    break;
     }
@@ -283,7 +282,7 @@ char _block_str[1024];
 char *block_repr(Block *b) {
     if (b->block_type == 0) {
         snprintf(_block_str, 1023,
-                 "fn%d<%d/%d->%d>", b->fidx, b->type->param_count,
+                 "fn0x%x<%d/%d->%d>", b->fidx, b->type->param_count,
                  b->local_count, b->type->result_count);
     } else {
         snprintf(_block_str, 1023, "%s<0/0->%d>",
@@ -509,38 +508,70 @@ void do_call(Module *m, uint32_t fidx, uint32_t *pc) {
         uint32_t a32=0, b32=1, c32=2, d32=3,
                  e32=4, f32=5, g32=6, h32=7, r32;
         if (TRACE) {
-            warn("  Calling function import 0x%x (%d), %s.%s,"
-                 " %d params, %d results\n",
-                 fidx, fidx, function->import_module, function->import_field,
-                 type->param_count, type->result_count);
+            warn("  >>> import 0x%x(%d) %s.%s(",
+                 fidx, fidx, function->import_module, function->import_field);
+            for (int p=type->param_count-1; p >= 0; p--) {
+                warn("%s%s", value_repr(&m->stack[m->sp-p]), p ? " " : "");
+            }
+            warn("), %d results\n", type->result_count);
         }
-        if (type->result_count == 0 &&
-            type->param_count == 0) {
-            function->func_ptr(a32, b32, c32, d32, e32, f32, f32, h32);
-        } else if (type->result_count == 0 &&
-                   type->param_count == 1 &&
-                   type->params[0] == I32) {
+        if (type->param_count == 0) {
+            // no params
+        } else if (type->param_count == 1 &&
+            type->params[0] == I32) {
             a32 = m->stack[m->sp].value.uint32;
             m->sp -= 1;
-            function->func_ptr(a32, b32, c32, d32, e32, f32, f32, h32);
-        } else if (type->result_count == 1 &&
-                   type->param_count == 2 &&
-                   type->results[0] == I32 &&
+        } else if (type->param_count == 2 &&
                    type->params[0] == I32 &&
                    type->params[1] == I32) {
             a32 = m->stack[m->sp-1].value.uint32;
             b32 = m->stack[m->sp].value.uint32;
             m->sp -= 2;
-            r32 = (uint64_t)function->func_ptr(a32, b32, c32, d32,
+        } else if (type->param_count == 3 &&
+                   type->params[0] == I32 &&
+                   type->params[1] == I32 &&
+                   type->params[2] == I32) {
+            a32 = m->stack[m->sp-2].value.uint32;
+            b32 = m->stack[m->sp-1].value.uint32;
+            c32 = m->stack[m->sp].value.uint32;
+            m->sp -= 3;
+        } else {
+            FATAL("Unsupported import call param types for '%s.%s'\n",
+                  function->import_module, function->import_field);
+        }
+        if (type->result_count == 0) {
+            function->func_ptr(a32, b32, c32, d32, e32, f32, f32, h32);
+        } else if (type->result_count == 1 &&
+                   type->results[0] == I32) {
+            r32 = (uint32_t)function->func_ptr(a32, b32, c32, d32,
                                                e32, f32, f32, h32);
             m->stack[++m->sp].value_type = I32;
             m->stack[m->sp].value.uint32 = r32;
         } else {
-            FATAL("Unsupported import call argument types\n");
+            FATAL("Unsupported import call return type for '%s.%s'\n",
+                  function->import_module, function->import_field);
+        }
+        if (TRACE) {
+            warn("  <<< import 0x%x(%d) %s.%s = %s\n",
+                 fidx, fidx, function->import_module, function->import_field,
+                 function->type->result_count > 0 ?
+                   value_repr(&m->stack[m->sp]) :
+                   "_");
         }
     } else {
         // Push current frame on the call stack
         push_block(m, function, m->sp - type->param_count, *pc);
+
+        if (TRACE) {
+            warn("  >> fn0x%x(%d) %s(",
+                 fidx, fidx, function->export_name ? function->export_name : "");
+            for (int p=type->param_count-1; p >= 0; p--) {
+                warn("%s%s", value_repr(&m->stack[m->sp-p]),
+                     p ? " " : "");
+            }
+            warn("), %d locals, %d results\n",
+                 function->local_count, type->result_count);
+        }
 
         // Push locals (dropping extras)
         m->fp = m->sp - type->param_count + 1;
@@ -551,13 +582,6 @@ void do_call(Module *m, uint32_t fidx, uint32_t *pc) {
             m->sp += 1;
             m->stack[m->sp].value_type = function->locals[lidx];
             m->stack[m->sp].value.uint64 = 0; // Initialize whole union to 0
-        }
-
-        if (TRACE) {
-            warn("  >>> function 0x%x (%d), start: 0x%x, end: 0x%x,"
-                 " %d locals, %d params, %d results\n",
-                 fidx, fidx, function->start_addr, function->end_addr,
-                 function->local_count, type->param_count, type->result_count);
         }
 
         // Return function start as new program counter
@@ -581,6 +605,7 @@ bool interpret(Module *m, uint32_t *pc) {
     uint64_t     d, e, f; // I64 math
     float        g, h, i; // F32 math
     double       j, k, l; // F64 math
+    bool         overflow = false;
 
     while (*pc < m->byte_count) {
         opcode = bytes[*pc];
@@ -647,8 +672,12 @@ bool interpret(Module *m, uint32_t *pc) {
             if (TRACE) { debug("      - of %s\n", block_repr(block)); }
             if (block->block_type == 0x00) { // Function
                 if (TRACE) {
-                    warn("  <<< function 0x%x (%d), return address 0x%x\n",
-                            block->fidx, block->fidx, *pc);
+                 warn("  << fn0x%x(%d) %s = %s\n",
+                      block->fidx, block->fidx,
+                      block->export_name ? block->export_name : "",
+                      block->type->result_count > 0 ?
+                        value_repr(&m->stack[m->sp]) :
+                        "_");
                 }
                 if (m->csp == -1) {
                     // Return to top-level
@@ -857,11 +886,22 @@ bool interpret(Module *m, uint32_t *pc) {
                       " offset: 0x%x, addr: 0x%x\n",
                       flags, offset, addr);
             }
-            maddr = m->memory.bytes+addr+offset;
+            if (offset+addr < addr) { overflow = true; }
+            maddr = m->memory.bytes+offset+addr;
+            if (maddr < m->memory.bytes) { overflow = true; }
             mem_end = m->memory.bytes+m->memory.pages*(uint32_t)pow(2,16);
             if (maddr+LOAD_SIZE[opcode-0x28] > mem_end) {
-                sprintf(exception, "out of bounds memory access");
-                return false;
+                overflow = true;
+            }
+            info("      - addr: 0x%x, offset: 0x%x, maddr: %p, mem_end: %p\n",
+                 addr, offset, maddr, mem_end);
+            if (!m->options.disable_memory_bounds) {
+                if (overflow) {
+                    warn("memory start: %p, memory end: %p, maddr: %p\n",
+                        m->memory.bytes, mem_end, maddr);
+                    sprintf(exception, "out of bounds memory access");
+                    return false;
+                }
             }
             stack[++m->sp].value.uint64 = 0; // initialize to 0
             switch (opcode) {
@@ -913,11 +953,22 @@ bool interpret(Module *m, uint32_t *pc) {
                       " offset: 0x%x, addr: 0x%x, val: %s\n",
                       flags, offset, addr, value_repr(sval));
             }
-            maddr = m->memory.bytes+addr+offset;
+            if (offset+addr < addr) { overflow = true; }
+            maddr = m->memory.bytes+offset+addr;
+            if (maddr < m->memory.bytes) { overflow = true; }
             mem_end = m->memory.bytes+m->memory.pages*(uint32_t)pow(2,16);
             if (maddr+LOAD_SIZE[opcode-0x28] > mem_end) {
-                sprintf(exception, "out of bounds memory access");
-                return false;
+                overflow = true;
+            }
+            info("      - addr: 0x%x, offset: 0x%x, maddr: %p, mem_end: %p, value: %s\n",
+                 addr, offset, maddr, mem_end, value_repr(sval));
+            if (!m->options.disable_memory_bounds) {
+                if (overflow) {
+                    warn("memory start: %p, memory end: %p, maddr: %p\n",
+                        m->memory.bytes, mem_end, maddr);
+                    sprintf(exception, "out of bounds memory access");
+                    return false;
+                }
             }
             switch (opcode) {
             case 0x36: memcpy(maddr, &sval->value.uint32, 4); break; // i32.store
@@ -1058,9 +1109,9 @@ bool interpret(Module *m, uint32_t *pc) {
         case 0x79 ... 0x7b:
             d = stack[m->sp].value.uint64;
             switch (opcode) {
-            case 0x79: f = d==0 ? 64 : __builtin_clzl(d); break; // i64.clz
-            case 0x7a: f = d==0 ? 64 : __builtin_ctzl(d); break; // i64.ctz
-            case 0x7b: f = __builtin_popcountl(d); break;        // i64.popcnt
+            case 0x79: f = d==0 ? 64 : __builtin_clzll(d); break; // i64.clz
+            case 0x7a: f = d==0 ? 64 : __builtin_ctzll(d); break; // i64.ctz
+            case 0x7b: f = __builtin_popcountll(d); break;        // i64.popcnt
             }
             stack[m->sp].value.uint64 = f;
             continue;
@@ -1374,7 +1425,7 @@ bool call_function32(Module *m, uint32_t fidx, uint32_t *res) {
 }
 
 
-Module *load_module(char *path) {
+Module *load_module(char *path, Options options) {
     uint32_t  mod_len;
     uint8_t  *bytes;
     uint8_t   vt;
@@ -1384,6 +1435,7 @@ Module *load_module(char *path) {
     // Allocate the module
     m = acalloc(1, sizeof(Module), "Module");
     m->path = path;
+    m->options = options;
 
     // Empty stacks
     m->sp  = -1;
@@ -1455,8 +1507,8 @@ Module *load_module(char *path) {
 
                 uint32_t external_kind = bytes[pos++];
 
-                debug("  import_count: %d, external_kind: %d, %s.%s\n",
-                      import_count, external_kind, import_module,
+                debug("  import: %d/%d, external_kind: %d, %s.%s\n",
+                      gidx, import_count, external_kind, import_module,
                       import_field);
 
                 uint32_t type_index, fidx;
@@ -1474,36 +1526,45 @@ Module *load_module(char *path) {
                     mutability = read_LEB(bytes, &pos, 1); break;
                 }
 
-                dlerror();
-                void *val, *handle = NULL;
+                void *val;
                 char *err, *sym = malloc(module_len + field_len + 5);
 
-                // Determine dl handle and symbol name
-                if ((strncmp("env", import_module, 4) == 0) ||
-                    (strncmp("global", import_module, 7) == 0) ||
-                    (strncmp("spectest", import_module, 9) == 0) ||
-                    (strncmp("asm2wasm", import_module, 9) == 0)) {
-                    // NULL handle and munged name for local lookup
+                do {
+                    // Try using module as handle filename
+                    if (resolvesym(import_module, import_field, &val, &err)) { break; }
+
+                    // Try concatenating module and field using underscores
+                    // Also, replace '-' with '_'
                     sprintf(sym, "_%s__%s_", import_module, import_field);
-                } else {
+                    int sidx = -1;
+                    while (sym[++sidx]) {
+                        if (sym[sidx] == '-') { sym[sidx] = '_'; }
+                    }
+                    if (resolvesym(NULL, sym, &val, &err)) { break; }
+
+                    // Try to strip the _emscripten_ part for GL symbols
+                    if ((strncmp("env", import_module, 4) == 0) &&
+                        (strncmp("_emscripten_gl", import_field, 14) ==0)) {
+                        sprintf(sym, "%s", import_field+12);
+                        if (resolvesym(NULL, sym, &val, &err)) { break; }
+                    }
+
+                    // Try to strip the _ for eGL symbols
+                    if ((strncmp("env", import_module, 4) == 0) &&
+                        (strncmp("_egl", import_field, 4) ==0)) {
+                        sprintf(sym, "%s", import_field+1);
+                        if (resolvesym(NULL, sym, &val, &err)) { break; }
+                    }
+
+                    // Try the plain symbol by itself
                     sprintf(sym, "%s", import_field);
-                    void *handle = dlopen(import_module, RTLD_LAZY);
-                    ASSERT(handle != NULL, "Could not dlopen %s\n",
-                        import_module);
-                }
+                    if (resolvesym(NULL, sym, &val, &err)) { break; }
 
-                // Replace '-' with '_'
-                int sidx = -1;
-                while (sym[++sidx]) {
-                    if (sym[sidx] == '-') { sym[sidx] = '_'; }
-                }
-
-                // Lookup the symbol
-                val = dlsym(handle, sym);
-                if ((err = dlerror()) != NULL) {
                     FATAL("Error: %s\n", err);
-                }
-                debug("  found symbol '%s' at address %p\n", sym, val);
+                } while(false);
+
+                debug("  found '%s.%s' as symbol '%s' at address %p\n",
+                      import_module, import_field, sym, val);
                 free(sym);
 
                 // Store in the right place
@@ -1530,11 +1591,14 @@ Module *load_module(char *path) {
                     ASSERT(!m->table.entries,
                            "More than 1 table not supported\n");
                     m->table.entries = val;
+                    warn("  setting table.entries to: %p\n", *(uint32_t **)val);
+                    m->table.entries = *(uint32_t **)val;
                     break;
                 case 0x02:  // Memory
                     ASSERT(!m->memory.bytes,
                            "More than 1 memory not supported\n");
-                    m->memory.bytes = val;
+                    warn("  setting memory.bytes to: %p\n", *(uint8_t **)val);
+                    m->memory.bytes = *(uint8_t **)val;
                     break;
                 case 0x03:  // Global
                     m->global_count += 1;
@@ -1547,8 +1611,6 @@ Module *load_module(char *path) {
                     switch (content_type) {
                     case I32: memcpy(&glob->value.uint32, val, 4); break;
                     case I64: memcpy(&glob->value.uint64, val, 8); break;
-                    //case I32: glob->value.uint32 = (uint64_t*)val; break;
-                    //case I64: glob->value.uint64 = (uint64_t*)val; break;
                     case F32: memcpy(&glob->value.f32, val, 4); break;
                     case F64: memcpy(&glob->value.f64, val, 8); break;
                     }
@@ -1686,10 +1748,11 @@ Module *load_module(char *path) {
                 uint32_t offset = m->stack[m->sp--].value.uint32;
 
                 uint32_t num_elem = read_LEB(bytes, &pos, 32);
+                warn("  table.entries: %p, offset: 0x%x\n", m->table.entries, offset);
+                ASSERT(offset+num_elem <= m->table.size,
+                       "table overflow %d+%d > %d\n", offset, num_elem,
+                       m->table.size);
                 for (uint32_t n=0; n<num_elem; n++) {
-                    ASSERT(offset+n < m->table.size,
-                           "table overflow %d >= %d\n",
-                           offset+n, m->table.size);
                     m->table.entries[offset+n] = read_LEB(bytes, &pos, 32);
                 }
             }
@@ -1758,9 +1821,13 @@ Module *load_module(char *path) {
 
                 // Copy the data to the memory offset
                 uint32_t size = read_LEB(bytes, &pos, 32);
-                ASSERT(offset+size <= m->memory.pages*pow(2,16),
-                       "memory overflow %d > %d", offset+size,
-                       (uint32_t)(m->memory.pages*pow(2,16)));
+                if (!m->options.disable_memory_bounds) {
+                    ASSERT(offset+size <= m->memory.pages*pow(2,16),
+                        "memory overflow %d+%d > %d\n", offset, size,
+                        (uint32_t)(m->memory.pages*pow(2,16)));
+                }
+                info("  setting 0x%x bytes of memory at offset 0x%x\n",
+                     size, offset);
                 memcpy(m->memory.bytes+offset, bytes+pos, size);
                 pos += size;
             }
@@ -1840,7 +1907,7 @@ bool invoke(Module *m, char *entry, int argc, char **argv) {
         sv->value_type = type->params[i];
         switch (type->params[i]) {
         case I32: sv->value.uint32 = strtoul(argv[i], NULL, 0); break;
-        case I64: sv->value.uint64 = strtoul(argv[i], NULL, 0); break;
+        case I64: sv->value.uint64 = strtoull(argv[i], NULL, 0); break;
         case F32: if (strncmp("-nan", argv[i], 4) == 0) {
                       sv->value.f32 = -NAN;
                   } else {

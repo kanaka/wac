@@ -179,3 +179,26 @@ double wa_fmin(double a, double b) {
     if (c==0 && a==b) { return signbit(a) ? a : b; }
     return c;
 }
+
+
+// Dynamic lib resolution
+
+// If filename is NULL, a NULL handle will be used
+// Returns true if resolution successful
+// Return false and sets err if resolution is not successful
+bool resolvesym(char *filename, char *symbol, void **val, char **err) {
+    void *handle = NULL;
+    dlerror(); // clear errors
+    if (filename) {
+        handle = dlopen(filename, RTLD_LAZY);
+        if (!handle) {
+            *err = dlerror();
+            return false;
+        }
+    }
+    *val = dlsym(handle, symbol);
+    if ((*err = dlerror()) != NULL) {
+        return false;
+    }
+    return true;
+}

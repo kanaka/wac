@@ -168,7 +168,9 @@ C_SKIP_TESTS = (
         # names.wast
         'invoke \"~!',
         # conversions.wast
-        'reinterpret_f.*nan' )
+        'reinterpret_f.*nan',
+        # float_exprs.wast
+        'nonarithmetic_nan_bitpattern.*03210' )
 PY_SKIP_TESTS = (
         # names.wast
         'invoke \"~!',

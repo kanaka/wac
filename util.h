@@ -3,17 +3,20 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <stdint.h>
+#include <dlfcn.h>
 
-#define TRACE 0
 #define DEBUG 0
 #define INFO 0
 #define WARN 0
 
-//#define TRACE 1
 //#define DEBUG 1
 //#define INFO 1
 //#define WARN 1
+
+#define TRACE 0
+//#define TRACE 1
 
 #define FATAL(...) { \
     fprintf(stderr, "Error(%s:%d): ", __FILE__, __LINE__); \
@@ -78,5 +81,8 @@ uint64_t rotl64(uint64_t n, unsigned int c);
 uint64_t rotr64(uint64_t n, unsigned int c);
 double wa_fmax(double a, double b);
 double wa_fmin(double a, double b);
+
+// Dynamic lib resolution
+bool resolvesym(char *filename, char *symbol, void **val, char **err);
 
 #endif // of UTIL_H
