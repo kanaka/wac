@@ -27,6 +27,8 @@ int main()
    */
   SDL_RenderPresent(renderer);
 
+  SDL_Delay(2000);
+
   printf("Done.\n");
 
   return 0;

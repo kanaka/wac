@@ -11,7 +11,7 @@
 #define INFO 0
 #define WARN 0
 
-//#define DEBUG 1
+//define DEBUG 1
 //#define INFO 1
 //#define WARN 1
 
@@ -63,6 +63,8 @@ uint64_t read_LEB(uint8_t *bytes, uint32_t *pos, uint32_t maxbits);
 uint64_t read_LEB_signed(uint8_t *bytes, uint32_t *pos, uint32_t maxbits);
 
 uint32_t read_uint32(uint8_t *bytes, uint32_t *pos);
+
+char *read_string(uint8_t *bytes, uint32_t *pos, uint32_t *result_len);
 
 uint8_t *mmap_file(char *path, uint32_t *len);
 

@@ -30,9 +30,7 @@ To compile wast source files to binary wasm modules you will need the
 wast2wasm tool from [wabt](https://github.com/WebAssembly/wabt). To
 compile C programs to wasm modules you will need
 [emscripten](https://github.com/kripken/emscripten) with
-[binaryen](https://github.com/WebAssembly/binaryen). In addition
-emscripten must be patched using `library.js.patch` to generate wace
-compatible wasm files.
+[binaryen](https://github.com/WebAssembly/binaryen).
 
 As an alternative to downloading and building the above tools, the
 `kanaka/webassembly` docker image (1.5GB) has 32-bit gcc
@@ -52,29 +50,33 @@ The build commands below can be run within the docker container.
 Build wac:
 
 ```bash
-make wac
+$ make wac
 ```
 
 Use `wast2wasm` to compile a simple wast program to a wasm:
 
 ```bash
-wast2wasm test/arith.wast -o test/arith.wasm
+$ make examples_wast/arith.wasm
 ```
 
 Now load the compiled wasm file and invoke some functions:
 
 ```bash
-./wac test/arith.wasm add 2 3
-./wac test/arith.wasm mul 7 8
+$./wac examples_wast/arith.wasm add 2 3
+0x5:i32
+$./wac examples_wast/arith.wasm mul 7 8
+0x38:i32
 ```
 
 wac also supports a very simple REPL (read-eval-print-loop) mode that
 runs commands in the form of `FUNC ARG...`:
 
 ```
-./wac --repl test/arith.wasm
+$ ./wac --repl examples_wast/arith.wasm
 > sub 10 5
+0x5:i32
 > div 13 4
+0x3:i32
 ```
 
 ## wace usage
@@ -82,22 +84,27 @@ runs commands in the form of `FUNC ARG...`:
 Build wace:
 
 ```bash
-make wace
+$ make wace
 ```
 
 Use emscripten/binaryen to compile some simple C programs and run them
 using wace:
 
 ```bash
-make test/hello1.wasm
-./wace test/hello1.wasm
+$ make examples_c/hello1.wasm
+$ ./wace examples_c/hello1.wasm
+hello world
 
-make test/hello2.wasm
-./wace test/hello2.wasm
+$ make examples_c/hello2.wasm
+$ ./wace examples_c/hello2.wasm
+hello malloc'd people
 
-# this fails: Could not create GLES window surface
-make test/hello_sdl.wasm
-./wace test/hello_sdl.wasm
+$ make examples_c/hello_sdl.wasm
+$ ./wace examples_c/hello_sdl.wasm
+INFO: OpenGL shaders: ENABLED
+INFO: Created renderer: opengl
+# Blue Window appears for 2 seconds.
+Done.
 ```
 
 ## Running WebAssembly spec tests
@@ -111,7 +118,7 @@ Check out the spec:
 git clone https://github.com/WebAssembly/spec
 ```
 
-Run the function (`func.wast`) test file from the spec:
+Run the `func.wast` test file (to test function calls) from the spec:
 
 ```
 ./runtest.py --wast2wasm /path/to/wast2wasm --interpreter ./wac spec/test/core/func.wast

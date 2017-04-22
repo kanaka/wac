@@ -1,4 +1,8 @@
 CC = gcc -std=gnu99 -m32
+EMCC = emcc -s WASM=1 -s SIDE_MODULE=1 -O2
+
+WAC_LIBS = m dl $(RL_LIBRARY)
+WACE_LIBS = m dl $(RL_LIBRARY) SDL2 EGL GL
 
 # WARNING: GPL license implications from using READLINE
 USE_READLINE ?=
@@ -16,43 +20,17 @@ endif
 %.o: %.c
 	$(CC) -c $(filter %.c,$^) -o $@
 
-# C example build rules
-examples_c/%.js: examples_c/%.c
-	emcc -s WASM=1 -s RELOCATABLE=1 -O2 -s USE_SDL=2 $< -o $@
-
-examples_c/%.html: examples_c/%.c
-	emcc -s WASM=1 -s RELOCATABLE=1 -O2 -s USE_SDL=2 $< -o $@
-
-examples_c/%: examples_c/%.c
-	$(CC) $< -o $@ -lSDL2
-
-.SECONDARY:
-examples_c/%.wasm: examples_c/%.js
-	@true
-
-.SECONDARY:
-examples_c/%.wast: examples_c/%.wasm
-	wasm2wast $< -o $@
-
-
-# Wast example build rules
-examples_wast/%.wasm: examples_wast/%.wast
-	wast2wasm $< -o $@
-
-
 # Additional dependencies
 util.o: util.h
 wa.o: wa.h util.h
-em.o: util.h
-
 wa.a: util.o
 
 
 wac: wac.c wa.a
-	$(CC) -rdynamic wac.c wa.a -o $@ -lm -ldl -l$(RL_LIBRARY)
+	$(CC) -rdynamic $^ -o $@ $(foreach l,$(WAC_LIBS),-l$(l))
 
-wace: wace.c wa.a em.o
-	$(CC) -rdynamic $^ -o $@ -lm -ldl -lSDL2 -lEGL -lGL
+wace: wace.c wa.a
+	$(CC) -rdynamic $^ -o $@ $(foreach l,$(WACE_LIBS),-l$(l))
 
 
 .PHONY:
@@ -61,3 +39,22 @@ clean:
 	    examples_c/*.js examples_c/*.html \
 	    examples_c/*.wasm examples_c/*.wast \
 	    examples_wast/*.wasm
+
+##########################################################
+
+# Wast example build rules
+examples_wast/%.wasm: examples_wast/%.wast
+	wast2wasm $< -o $@
+
+
+# General C example build rules
+examples_c/%.wasm: examples_c/%.c
+	$(EMCC) -I examples_c/include -s USE_SDL=2 $< -o $@
+
+.SECONDARY:
+examples_c/%.wast: examples_c/%.wasm
+	wasm2wast $< -o $@
+
+examples_c/%: examples_c/%.c
+	$(CC) $< -o $@ -lSDL2
+

@@ -102,6 +102,7 @@ typedef struct Memory {
 
 typedef struct Options {
     bool        disable_memory_bounds;
+    bool        dlsym_trim_underscore;
 } Options;
 
 

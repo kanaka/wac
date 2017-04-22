@@ -169,6 +169,8 @@ C_SKIP_TESTS = (
         'invoke \"~!',
         # conversions.wast
         'reinterpret_f.*nan',
+        # float_misc.wast
+        'f64.add.*0x1.fffffffffffffp\+969',
         # float_exprs.wast
         'nonarithmetic_nan_bitpattern.*03210' )
 PY_SKIP_TESTS = (
@@ -492,8 +494,8 @@ if __name__ == "__main__":
             elif re.match("^\(assert_malformed\\b.*", form):
                 log("ignoring assert_malformed")
                 pass
-            elif re.match("^\(assert_return_nan\\b.*", form):
-                log("ignoring assert_return_nan")
+            elif re.match("^\(assert_return[_a-z]*_nan\\b.*", form):
+                log("ignoring assert_return_.*_nan")
                 pass
             elif re.match(".*\(invoke\s+\$\\b.*", form):
                 log("ignoring invoke $FOO")

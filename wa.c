@@ -499,23 +499,32 @@ Block *pop_block(Module *m, uint32_t *pc) {
 //
 // Thunks
 //
-// thunk_1_0  : I32 return, no arguments
-// thunk_2_34 : I64 return, arguments: (F32, F64)
+// thunk_i_0  : I32 return, no arguments
+// thunk_I_fF : I64 return, arguments: (F32, F64)
 
-void thunk_1_0(Module *m, Block *function, Type *type) {
+void thunk_0_0(Module *m, Block *function, Type *type) {
+    function->func_ptr();
+}
+
+void thunk_i_0(Module *m, Block *function, Type *type) {
     uint32_t res = (uint32_t)function->func_ptr();
     m->sp += 1;
     m->stack[m->sp].value_type = I32;
     m->stack[m->sp].value.uint32 = res;
 }
 
-void thunk_1_1(Module *m, Block *function, Type *type) {
+void thunk_0_i(Module *m, Block *function, Type *type) {
+    function->func_ptr(m->stack[m->sp].value.uint32);
+    m->sp -= 1;
+}
+
+void thunk_i_i(Module *m, Block *function, Type *type) {
     uint32_t res = (uint32_t)function->func_ptr(m->stack[m->sp].value.uint32);
     m->stack[m->sp].value_type = I32;
     m->stack[m->sp].value.uint32 = res;
 }
 
-void thunk_1_11(Module *m, Block *function, Type *type) {
+void thunk_i_ii(Module *m, Block *function, Type *type) {
     uint32_t res = (uint32_t)function->func_ptr(m->stack[m->sp-1].value.uint32,
                                                 m->stack[m->sp].value.uint32);
     m->sp -= 1;
@@ -523,7 +532,7 @@ void thunk_1_11(Module *m, Block *function, Type *type) {
     m->stack[m->sp].value.uint32 = res;
 }
 
-void thunk_1_111(Module *m, Block *function, Type *type) {
+void thunk_i_iii(Module *m, Block *function, Type *type) {
     uint32_t res = (uint32_t)function->func_ptr(m->stack[m->sp-2].value.uint32,
                                                 m->stack[m->sp-1].value.uint32,
                                                 m->stack[m->sp].value.uint32);
@@ -532,7 +541,7 @@ void thunk_1_111(Module *m, Block *function, Type *type) {
     m->stack[m->sp].value.uint32 = res;
 }
 
-void thunk_1_1111(Module *m, Block *function, Type *type) {
+void thunk_i_iiii(Module *m, Block *function, Type *type) {
     uint32_t res = (uint32_t)function->func_ptr(m->stack[m->sp-3].value.uint32,
                                                 m->stack[m->sp-2].value.uint32,
                                                 m->stack[m->sp-1].value.uint32,
@@ -542,7 +551,7 @@ void thunk_1_1111(Module *m, Block *function, Type *type) {
     m->stack[m->sp].value.uint32 = res;
 }
 
-void thunk_1_11111(Module *m, Block *function, Type *type) {
+void thunk_i_iiiii(Module *m, Block *function, Type *type) {
     uint32_t res = (uint32_t)function->func_ptr(m->stack[m->sp-4].value.uint32,
                                                 m->stack[m->sp-3].value.uint32,
                                                 m->stack[m->sp-2].value.uint32,
@@ -553,13 +562,13 @@ void thunk_1_11111(Module *m, Block *function, Type *type) {
     m->stack[m->sp].value.uint32 = res;
 }
 
-void thunk_0_11(Module *m, Block *function, Type *type) {
+void thunk_0_ii(Module *m, Block *function, Type *type) {
     function->func_ptr(m->stack[m->sp-1].value.uint32,
                        m->stack[m->sp].value.uint32);
     m->sp -= 2;
 }
 
-void thunk_1_4(Module *m, Block *function, Type *type) {
+void thunk_i_F(Module *m, Block *function, Type *type) {
     uint32_t res = (uint32_t)function->func_ptr(m->stack[m->sp].value.f64);
     m->stack[m->sp].value_type = I32;
     m->stack[m->sp].value.uint32 = res;
@@ -594,14 +603,16 @@ void thunk(Module *m, uint32_t fidx) {
         debug("      thunk_mask: 0x%x\n", thunk_mask);
     }
     switch (thunk_mask) {
-    case 0x810      : thunk_1_0     (m, func, type); break;
-    case 0x8101     : thunk_1_1     (m, func, type); break;
-    case 0x81011    : thunk_1_11    (m, func, type); break;
-    case 0x810111   : thunk_1_111   (m, func, type); break;
-    case 0x8101111  : thunk_1_1111  (m, func, type); break;
-    case 0x81011111 : thunk_1_11111 (m, func, type); break;
-    case 0x80011    : thunk_0_11    (m, func, type); break;
-    case 0x8104     : thunk_1_4     (m, func, type); break;
+    case 0x800      : thunk_0_0     (m, func, type); break;
+    case 0x810      : thunk_i_0     (m, func, type); break;
+    case 0x8001     : thunk_0_i     (m, func, type); break;
+    case 0x8101     : thunk_i_i     (m, func, type); break;
+    case 0x81011    : thunk_i_ii    (m, func, type); break;
+    case 0x810111   : thunk_i_iii   (m, func, type); break;
+    case 0x8101111  : thunk_i_iiii  (m, func, type); break;
+    case 0x81011111 : thunk_i_iiiii (m, func, type); break;
+    case 0x80011    : thunk_0_ii    (m, func, type); break;
+    case 0x8104     : thunk_i_F     (m, func, type); break;
     default: FATAL("unsupported thunk mask 0x%x\n", thunk_mask);
     }
 
@@ -1476,7 +1487,11 @@ bool call_function32(Module *m, uint32_t fidx, uint32_t *res) {
     uint32_t pc = 0;
     bool result;
 
-    do_call(m, fidx, &pc);
+    if (fidx < m->import_count) {
+        thunk(m, fidx);        // import/thunk call
+    } else {
+        do_call(m, fidx, &pc);  // regular function call
+    }
 
     result = interpret(m, &pc);
 
@@ -1532,6 +1547,21 @@ Module *load_module(char *path, Options options) {
         int start_pos = pos;
         debug("Reading section %d at 0x%x, length %d\n", id, pos, slen);
         switch (id) {
+        case 0:
+            warn("Parsing Custom(0) section (length: 0x%x)\n", slen);
+            uint32_t end_pos = pos+slen;
+            char *name = read_string(bytes, &pos, NULL);
+            warn("  Section name '%s'\n", name);
+            if (strncmp(name, "dylink", 7) == 0) {
+                // https://github.com/WebAssembly/tool-conventions/blob/master/DynamicLinking.md
+                // TODO: make use of these
+                uint32_t memorysize = read_LEB(bytes, &pos, 32);
+                uint32_t tablesize = read_LEB(bytes, &pos, 32);
+            } else {
+                error("Ignoring unknown custom section '%s'\n", name);
+            }
+            pos = end_pos;
+            break;
         case 1:
             warn("Parsing Type(1) section (length: 0x%x)\n", slen);
             m->type_count = read_LEB(bytes, &pos, 32);
@@ -1561,17 +1591,9 @@ Module *load_module(char *path, Options options) {
             warn("Parsing Import(2) section (length: 0x%x)\n", slen);
             uint32_t import_count = read_LEB(bytes, &pos, 32);
             for (uint32_t gidx=0; gidx<import_count; gidx++) {
-                uint32_t module_len = read_LEB(bytes, &pos, 32);
-                char * import_module = malloc(module_len+1);
-                memcpy(import_module, bytes+pos, module_len);
-                import_module[module_len] = '\0';
-                pos += module_len;
-
-                uint32_t field_len = read_LEB(bytes, &pos, 32);
-                char * import_field = malloc(field_len+1);
-                memcpy(import_field, bytes+pos, field_len);
-                import_field[field_len] = '\0';
-                pos += field_len;
+                uint32_t module_len, field_len;
+                char *import_module = read_string(bytes, &pos, &module_len);
+                char *import_field = read_string(bytes, &pos, &field_len);
 
                 uint32_t external_kind = bytes[pos++];
 
@@ -1610,21 +1632,16 @@ Module *load_module(char *path, Options options) {
                     }
                     if (resolvesym(NULL, sym, &val, &err)) { break; }
 
-                    // Try to strip the _emscripten_ part for GL symbols
-                    if ((strncmp("env", import_module, 4) == 0) &&
-                        (strncmp("_emscripten_gl", import_field, 14) ==0)) {
-                        sprintf(sym, "%s", import_field+12);
-                        if (resolvesym(NULL, sym, &val, &err)) { break; }
-                    }
-
-                    // Try to strip the _ for eGL symbols
-                    if ((strncmp("env", import_module, 4) == 0) &&
-                        (strncmp("_egl", import_field, 4) ==0)) {
+                    // If enabled, try without the leading underscore (added
+                    // by emscripten for external symbols)
+                    if (m->options.dlsym_trim_underscore &&
+                        (strncmp("env", import_module, 4) == 0) &&
+                        (strncmp("_", import_field, 1) == 0)) {
                         sprintf(sym, "%s", import_field+1);
                         if (resolvesym(NULL, sym, &val, &err)) { break; }
                     }
 
-                    // Try the plain symbol by itself
+                    // Try the plain symbol by itself with module name/handle
                     sprintf(sym, "%s", import_field);
                     if (resolvesym(NULL, sym, &val, &err)) { break; }
 
@@ -1775,11 +1792,8 @@ Module *load_module(char *path, Options options) {
             warn("Parsing Export(7) section (length: 0x%x)\n", slen);
             uint32_t export_count = read_LEB(bytes, &pos, 32);
             for (uint32_t e=0; e<export_count; e++) {
-                uint32_t field_len = read_LEB(bytes, &pos, 32);
-                char *name = malloc(field_len+1);
-                memcpy(name, bytes+pos, field_len);
-                name[field_len] = '\0';
-                pos += field_len;
+                char *name = read_string(bytes, &pos, NULL);
+
                 uint32_t kind = bytes[pos++];
                 uint32_t index = read_LEB(bytes, &pos, 32);
                 if (kind != 0x00) {
@@ -1919,7 +1933,11 @@ Module *load_module(char *path, Options options) {
 
         if (TRACE && DEBUG) { dump_stacks(m); }
 
-        do_call(m, fidx, &pc);
+        if (fidx < m->import_count) {
+            thunk(m, fidx);        // import/thunk call
+        } else {
+            do_call(m, fidx, &pc);  // regular function call
+        }
 
         if (m->csp < 0) {
             // start function was a direct external call
