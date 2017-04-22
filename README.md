@@ -10,7 +10,7 @@ There are two different builds of wac:
   mode. Designed to run standalone wasm files compiled with wast2wasm.
   Passes most spec tests apart from some multi-module import/export
   tests.
-* **wace**: (WebAssembly in C and Emscripten) Client with host
+* **wace**: (WebAssembly in C with Emscripten) Client with host
   library/memory integration. Designed to run wasm code that has been
   built using Emscripten.
 
@@ -97,7 +97,7 @@ hello world
 
 $ make examples_c/hello2.wasm
 $ ./wace examples_c/hello2.wasm
-hello malloc'd people
+hello malloc people
 
 $ make examples_c/hello_sdl.wasm
 $ ./wace examples_c/hello_sdl.wasm
