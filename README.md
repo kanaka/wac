@@ -12,7 +12,7 @@ There are two different builds of wac:
   tests.
 * **wace**: (WebAssembly in C with Emscripten) Client with host
   library/memory integration. Designed to run wasm code that has been
-  built using Emscripten.
+  built using Emscripten (using `-s SIDE_MODULE=1`).
 
 ## Prerequisites
 
