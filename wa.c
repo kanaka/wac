@@ -8,6 +8,7 @@
 
 #include "util.h"
 #include "wa.h"
+#include "thunks.h"
 
 char OPERATOR_INFO[][20] = {
     // Control flow operators
@@ -286,6 +287,7 @@ char *block_repr(Block *b) {
                  b->local_count, b->type->result_count);
     } else {
         snprintf(_block_str, 1023, "%s<0/0->%d>",
+                 b->block_type == 0x01 ? "init" :
                  b->block_type == 0x02 ? "block" :
                  b->block_type == 0x03 ? "loop" : "if",
                  b->type->result_count);
@@ -450,15 +452,15 @@ void find_blocks(Module *m) {
 // Stack machine (byte code related functions)
 //
 
-void push_block(Module *m, Block *block, int sp, uint32_t ra) {
+void push_block(Module *m, Block *block, int sp) {
     m->csp += 1;
     m->callstack[m->csp].block = block;
     m->callstack[m->csp].sp = sp;
     m->callstack[m->csp].fp = m->fp;
-    m->callstack[m->csp].ra = ra;
+    m->callstack[m->csp].ra = m->pc;
 }
 
-Block *pop_block(Module *m, uint32_t *pc) {
+Block *pop_block(Module *m) {
     Frame *frame = &m->callstack[m->csp--];
     Type *t = frame->block->type;
     int ret_sp;
@@ -490,151 +492,131 @@ Block *pop_block(Module *m, uint32_t *pc) {
 
     if (frame->block->block_type == 0x00) {
         // Function, set pc to return address
-        *pc = frame->ra;
+        m->pc = frame->ra;
     }
 
     return frame->block;
 }
 
 //
-// Thunks
+// Outbound Thunks (calling imported functions)
 //
-// thunk_i_0  : I32 return, no arguments
-// thunk_I_fF : I64 return, arguments: (F32, F64)
 
-void thunk_0_0(Module *m, Block *function, Type *type) {
-    function->func_ptr();
+uint64_t get_thunk_mask(Module *m, uint32_t fidx) {
+    Type  *type = m->functions[fidx].type;
+    uint64_t  thunk_mask = 0x80;
+
+    if (type->result_count == 1) {
+        thunk_mask |= 0x80 - type->results[0];
+    }
+    thunk_mask = thunk_mask << 4;
+    for(int p=0; p<type->param_count; p++) {
+        thunk_mask = ((uint64_t)thunk_mask) << 4;
+        thunk_mask |= 0x80 - type->params[p];
+    }
+
+    return thunk_mask;
 }
 
-void thunk_i_0(Module *m, Block *function, Type *type) {
-    uint32_t res = (uint32_t)function->func_ptr();
-    m->sp += 1;
-    m->stack[m->sp].value_type = I32;
-    m->stack[m->sp].value.uint32 = res;
-}
-
-void thunk_0_i(Module *m, Block *function, Type *type) {
-    function->func_ptr(m->stack[m->sp].value.uint32);
-    m->sp -= 1;
-}
-
-void thunk_i_i(Module *m, Block *function, Type *type) {
-    uint32_t res = (uint32_t)function->func_ptr(m->stack[m->sp].value.uint32);
-    m->stack[m->sp].value_type = I32;
-    m->stack[m->sp].value.uint32 = res;
-}
-
-void thunk_i_ii(Module *m, Block *function, Type *type) {
-    uint32_t res = (uint32_t)function->func_ptr(m->stack[m->sp-1].value.uint32,
-                                                m->stack[m->sp].value.uint32);
-    m->sp -= 1;
-    m->stack[m->sp].value_type = I32;
-    m->stack[m->sp].value.uint32 = res;
-}
-
-void thunk_i_iii(Module *m, Block *function, Type *type) {
-    uint32_t res = (uint32_t)function->func_ptr(m->stack[m->sp-2].value.uint32,
-                                                m->stack[m->sp-1].value.uint32,
-                                                m->stack[m->sp].value.uint32);
-    m->sp -= 2;
-    m->stack[m->sp].value_type = I32;
-    m->stack[m->sp].value.uint32 = res;
-}
-
-void thunk_i_iiii(Module *m, Block *function, Type *type) {
-    uint32_t res = (uint32_t)function->func_ptr(m->stack[m->sp-3].value.uint32,
-                                                m->stack[m->sp-2].value.uint32,
-                                                m->stack[m->sp-1].value.uint32,
-                                                m->stack[m->sp].value.uint32);
-    m->sp -= 3;
-    m->stack[m->sp].value_type = I32;
-    m->stack[m->sp].value.uint32 = res;
-}
-
-void thunk_i_iiiii(Module *m, Block *function, Type *type) {
-    uint32_t res = (uint32_t)function->func_ptr(m->stack[m->sp-4].value.uint32,
-                                                m->stack[m->sp-3].value.uint32,
-                                                m->stack[m->sp-2].value.uint32,
-                                                m->stack[m->sp-1].value.uint32,
-                                                m->stack[m->sp].value.uint32);
-    m->sp -= 4;
-    m->stack[m->sp].value_type = I32;
-    m->stack[m->sp].value.uint32 = res;
-}
-
-void thunk_0_ii(Module *m, Block *function, Type *type) {
-    function->func_ptr(m->stack[m->sp-1].value.uint32,
-                       m->stack[m->sp].value.uint32);
-    m->sp -= 2;
-}
-
-void thunk_i_F(Module *m, Block *function, Type *type) {
-    uint32_t res = (uint32_t)function->func_ptr(m->stack[m->sp].value.f64);
-    m->stack[m->sp].value_type = I32;
-    m->stack[m->sp].value.uint32 = res;
-}
-
-// Call/thunk an imported function
-void thunk(Module *m, uint32_t fidx) {
-    Block *func = &m->functions[fidx];
-    Type  *type = func->type;
-    uint32_t  thunk_mask = 0x80;
+void thunk_out(Module *m, uint32_t fidx) {
+    Block    *func = &m->functions[fidx];
+    Type     *type = func->type;
+    uint64_t  thunk_mask = get_thunk_mask(m, fidx);
     if (TRACE) {
-        warn("  >>> thunk 0x%x(%d) %s.%s(",
+        warn("  >>> thunk_out 0x%x(%d) %s.%s(",
              func->fidx, func->fidx,
              func->import_module, func->import_field);
         for (int p=type->param_count-1; p >= 0; p--) {
             warn("%s%s", value_repr(&m->stack[m->sp-p]), p ? " " : "");
         }
         warn("), %d results\n", type->result_count);
-    }
-    //dump_stacks(m);
-
-    if (type->result_count == 1) {
-        thunk_mask += 0x80 - type->results[0];
-    }
-    thunk_mask = thunk_mask << 4;
-    for(int p=0; p<type->param_count; p++) {
-        thunk_mask = thunk_mask << 4;
-        thunk_mask += 0x80 - type->params[p];
-    }
-
-    if (TRACE) {
         debug("      thunk_mask: 0x%x\n", thunk_mask);
     }
+
     switch (thunk_mask) {
-    case 0x800      : thunk_0_0     (m, func, type); break;
-    case 0x810      : thunk_i_0     (m, func, type); break;
-    case 0x8001     : thunk_0_i     (m, func, type); break;
-    case 0x8101     : thunk_i_i     (m, func, type); break;
-    case 0x81011    : thunk_i_ii    (m, func, type); break;
-    case 0x810111   : thunk_i_iii   (m, func, type); break;
-    case 0x8101111  : thunk_i_iiii  (m, func, type); break;
-    case 0x81011111 : thunk_i_iiiii (m, func, type); break;
-    case 0x80011    : thunk_0_ii    (m, func, type); break;
-    case 0x8104     : thunk_i_F     (m, func, type); break;
-    default: FATAL("unsupported thunk mask 0x%x\n", thunk_mask);
+    case 0x800       : thunk_out_0_0      (m, func, type); break;
+    case 0x8001      : thunk_out_0_i      (m, func, type); break;
+    case 0x80011     : thunk_out_0_ii     (m, func, type); break;
+    case 0x8001111   : thunk_out_0_iiii   (m, func, type); break;
+    case 0x810       : thunk_out_i_0      (m, func, type); break;
+    case 0x8101      : thunk_out_i_i      (m, func, type); break;
+    case 0x81011     : thunk_out_i_ii     (m, func, type); break;
+    case 0x810111    : thunk_out_i_iii    (m, func, type); break;
+    case 0x8101111   : thunk_out_i_iiii   (m, func, type); break;
+    case 0x81011111  : thunk_out_i_iiiii  (m, func, type); break;
+    case 0x80033     : thunk_out_0_ff     (m, func, type); break;
+    case 0x800333    : thunk_out_0_fff    (m, func, type); break;
+    case 0x8003333   : thunk_out_0_ffff   (m, func, type); break;
+    case 0x8303      : thunk_out_f_f      (m, func, type); break;
+    case 0x800444444 : thunk_out_0_FFFFFF (m, func, type); break;
+    case 0x8103      : thunk_out_i_f      (m, func, type); break;
+    case 0x8404      : thunk_out_F_F      (m, func, type); break;
+    default: FATAL("unsupported thunk_out mask 0x%llx\n", thunk_mask);
     }
 
-    //dump_stacks(m);
-
     if (TRACE) {
-        warn("  <<< thunk 0x%x(%d) %s.%s = %s\n",
+        warn("  <<< thunk_out 0x%x(%d) %s.%s = %s\n",
              func->fidx, func->fidx, func->import_module, func->import_field,
              type->result_count > 0 ? value_repr(&m->stack[m->sp]) : "_");
     }
 }
 
 
-// Call a function
+//
+// Inbound Thunks (external calls into exported functions)
+//
+
+Module * _wa_current_module_;
+
+void setup_call(Module *m, uint32_t fidx);
+
+// Push arguments
+// return function pointer to thunk_in_* function
+void (*setup_thunk_in(uint32_t fidx))() {
+    Module   *m = _wa_current_module_; // TODO: global state, clean up somehow
+    Block    *func = &m->functions[fidx];
+    Type     *type = func->type;
+    uint64_t  thunk_mask = get_thunk_mask(m, fidx);
+
+    // Make space on the stack
+    m->sp += type->param_count;
+
+    if (TRACE) {
+        warn("  {{}} setup_thunk_in '%s', mask: 0x%x, ARGS FOR '>>' ARE BOGUS\n",
+             func->export_name, thunk_mask);
+    }
+
+    // Do normal function call setup. The fp will point to the start of stack
+    // elements that were just added above
+    setup_call(m, fidx);
+
+    // Set the type of the unset stack elements
+    for(int p=0; p<type->param_count; p++) {
+        m->stack[m->fp+p].value_type = type->params[p];
+    }
+
+    // Return the thunk_in function
+    void (*f)(void);
+    switch (thunk_mask) {
+    case 0x800      : f = (void (*)(void)) thunk_in_0_0; break;
+    case 0x8101     : f = (void (*)(void)) thunk_in_i_i; break;
+    case 0x80011    : f = (void (*)(void)) thunk_in_0_ii; break;
+    default: FATAL("unsupported thunk_in mask 0x%x\n", thunk_mask);
+    }
+
+    return f;
+}
+
+
+// Setup a function
 // Push params and locals on the stack and save a call frame on the call stack
-// Returns new pc value for the start of the function
-void do_call(Module *m, uint32_t fidx, uint32_t *pc) {
+// Sets new pc value for the start of the function
+void setup_call(Module *m, uint32_t fidx) {
     Block  *func = &m->functions[fidx];
     Type   *type = func->type;
 
     // Push current frame on the call stack
-    push_block(m, func, m->sp - type->param_count, *pc);
+    push_block(m, func, m->sp - type->param_count);
 
     if (TRACE) {
         warn("  >> fn0x%x(%d) %s(",
@@ -658,18 +640,18 @@ void do_call(Module *m, uint32_t fidx, uint32_t *pc) {
         m->stack[m->sp].value.uint64 = 0; // Initialize whole union to 0
     }
 
-    // Return function start as new program counter
-    *pc = func->start_addr;
+    // Set program counter to start of function
+    m->pc = func->start_addr;
     return;
 }
 
-bool interpret(Module *m, uint32_t *pc) {
+bool interpret(Module *m) {
     uint8_t     *bytes = m->bytes;
     StackValue  *stack = m->stack;
 
     uint32_t     cur_pc;
     Block       *block;
-    uint32_t     arg, val, fidx, cond, depth, count, didx;
+    uint32_t     arg, val, fidx, tidx, cond, depth, count, didx;
     uint32_t     flags, offset, addr;
     uint8_t     *maddr, *mem_end;
     uint32_t    *depths;
@@ -680,10 +662,10 @@ bool interpret(Module *m, uint32_t *pc) {
     double       j, k, l; // F64 math
     bool         overflow = false;
 
-    while (*pc < m->byte_count) {
-        opcode = bytes[*pc];
-        cur_pc = *pc;
-        *pc += 1;
+    while (m->pc < m->byte_count) {
+        opcode = bytes[m->pc];
+        cur_pc = m->pc;
+        m->pc += 1;
 
         if (TRACE) {
             if (DEBUG) { dump_stacks(m); }
@@ -701,17 +683,17 @@ bool interpret(Module *m, uint32_t *pc) {
         case 0x01:  // nop
             continue;
         case 0x02:  // block
-            read_LEB(bytes, pc, 32);  // ignore block type
-            push_block(m, m->block_lookup[cur_pc], m->sp, 0);
+            read_LEB(bytes, &m->pc, 32);  // ignore block type
+            push_block(m, m->block_lookup[cur_pc], m->sp);
             continue;
         case 0x03:  // loop
-            read_LEB(bytes, pc, 32);  // ignore block type
-            push_block(m, m->block_lookup[cur_pc], m->sp, 0);
+            read_LEB(bytes, &m->pc, 32);  // ignore block type
+            push_block(m, m->block_lookup[cur_pc], m->sp);
             continue;
         case 0x04:  // if
-            read_LEB(bytes, pc, 32);  // ignore block type
+            read_LEB(bytes, &m->pc, 32);  // ignore block type
             Block *block = m->block_lookup[cur_pc];
-            push_block(m, block, m->sp, 0);
+            push_block(m, block, m->sp);
 
             cond = stack[m->sp--].value.uint32;
             if (cond == 0) { // if false (I32)
@@ -719,26 +701,26 @@ bool interpret(Module *m, uint32_t *pc) {
                 if (block->else_addr == 0) {
                     // no else block, pop if block and skip end
                     m->csp -= 1;
-                    *pc = block->br_addr+1;
+                    m->pc = block->br_addr+1;
                 } else {
-                    *pc = block->else_addr;
+                    m->pc = block->else_addr;
                 }
             }
             // if true, keep going
             if (TRACE) {
                 debug("      - cond: 0x%x jump to 0x%x, block: %s\n",
-                       cond, *pc, block_repr(block));
+                       cond, m->pc, block_repr(block));
             }
             continue;
         case 0x05:  // else
             block = m->callstack[m->csp].block;
-            *pc = block->br_addr;
+            m->pc = block->br_addr;
             if (TRACE) {
-                debug("      - of %s jump to 0x%x\n", block_repr(block), *pc);
+                debug("      - of %s jump to 0x%x\n", block_repr(block), m->pc);
             }
             continue;
         case 0x0b:  // end
-            block = pop_block(m, pc);
+            block = pop_block(m);
             if (block == NULL) {
                 return false; // an exception (set by pop_block)
             }
@@ -765,30 +747,30 @@ bool interpret(Module *m, uint32_t *pc) {
             }
             continue;
         case 0x0c:  // br
-            depth = read_LEB(bytes, pc, 32);
+            depth = read_LEB(bytes, &m->pc, 32);
             m->csp -= depth;
             // set to end for pop_block
-            *pc = m->callstack[m->csp].block->br_addr;
-            if (TRACE) { debug("      - to: 0x%x\n", *pc); }
+            m->pc = m->callstack[m->csp].block->br_addr;
+            if (TRACE) { debug("      - to: 0x%x\n", &m->pc); }
             continue;
         case 0x0d:  // br_if
-            depth = read_LEB(bytes, pc, 32);
+            depth = read_LEB(bytes, &m->pc, 32);
 
             cond = stack[m->sp--].value.uint32;
             if (cond) { // if true
                 m->csp -= depth;
                 // set to end for pop_block
-                *pc = m->callstack[m->csp].block->br_addr;
+                m->pc = m->callstack[m->csp].block->br_addr;
             }
-            if (TRACE) { debug("      - depth: 0x%x, cond: 0x%x, to: 0x%x\n", depth, cond, *pc); }
+            if (TRACE) { debug("      - depth: 0x%x, cond: 0x%x, to: 0x%x\n", depth, cond, m->pc); }
             continue;
         case 0x0e:  // br_table
-            count = read_LEB(bytes, pc, 32);
+            count = read_LEB(bytes, &m->pc, 32);
             depths = acalloc(count, sizeof(uint32_t), "uint32_t");
             for(uint32_t i=0; i<count; i++) {
-                depths[i] = read_LEB(bytes, pc, 32);
+                depths[i] = read_LEB(bytes, &m->pc, 32);
             }
-            depth = read_LEB(bytes, pc, 32);
+            depth = read_LEB(bytes, &m->pc, 32);
 
             didx = stack[m->sp--].value.uint32;
             if (didx >= 0 && didx < count) {
@@ -798,9 +780,9 @@ bool interpret(Module *m, uint32_t *pc) {
 
             m->csp -= depth;
             // set to end for pop_block
-            *pc = m->callstack[m->csp].block->br_addr;
+            m->pc = m->callstack[m->csp].block->br_addr;
             if (TRACE) {
-                debug("      - count: %d, didx: %d, to: 0x%x\n", count, didx, *pc);
+                debug("      - count: %d, didx: %d, to: 0x%x\n", count, didx, m->pc);
             }
             continue;
         case 0x0f:  // return
@@ -810,9 +792,9 @@ bool interpret(Module *m, uint32_t *pc) {
             }
             // Set the program count to the end of the function
             // The actual pop_block and return is handled by the end opcode.
-            *pc = m->callstack[0].block->end_addr;
+            m->pc = m->callstack[0].block->end_addr;
             if (TRACE) {
-                debug("      - to: 0x%x\n", *pc);
+                debug("      - to: 0x%x\n", m->pc);
             }
             continue;
 
@@ -821,32 +803,45 @@ bool interpret(Module *m, uint32_t *pc) {
         // Call operators
         //
         case 0x10:  // call
-            fidx = read_LEB(bytes, pc, 32);
+            fidx = read_LEB(bytes, &m->pc, 32);
 
             if (fidx < m->import_count) {
-                thunk(m, fidx);        // import/thunk call
+                thunk_out(m, fidx);   // import/thunk call
             } else {
-                do_call(m, fidx, pc);  // regular function call
+                setup_call(m, fidx);  // regular function call
                 if (TRACE) {
-                    debug("      - calling function fidx: %d at: 0x%x\n", fidx, *pc);
+                    debug("      - calling function fidx: %d at: 0x%x\n", fidx, m->pc);
                 }
             }
             continue;
         case 0x11:  // call_indirect
-            read_LEB(bytes, pc, 32); // TODO: use tidx?
-            read_LEB(bytes, pc, 1); // reserved immediate
+            tidx = read_LEB(bytes, &m->pc, 32); // TODO: use tidx?
+            read_LEB(bytes, &m->pc, 1); // reserved immediate
             val = stack[m->sp--].value.uint32;
+            if (m->options.mangle_table_index) {
+                // val is the table address + the index (not sized for the
+                // pointer size) so get the actual (sized) index
+                if (TRACE) {
+                    debug("      - entries: %p, original val: 0x%x, new val: 0x%x\n",
+                        m->table.entries, val, (uint32_t)m->table.entries - val);
+                }
+                val = val - (uint32_t)m->table.entries;
+            }
             if (val < 0 || val >= m->table.maximum) {
-                sprintf(exception, "undefined element");
+                sprintf(exception, "undefined element 0x%x", val);
                 return false;
             }
 
             fidx = m->table.entries[val];
+            if (TRACE) {
+                debug("       - call_indirect tidx: %d, val: 0x%x, fidx: 0x%x\n",
+                      tidx, val, fidx);
+            }
 
             if (fidx < m->import_count) {
-                thunk(m, fidx);        // import/thunk call
+                thunk_out(m, fidx);    // import/thunk call
             } else {
-                do_call(m, fidx, pc);  // regular function call
+                setup_call(m, fidx);   // regular function call
 
                 Block *func = &m->functions[fidx];
                 Type *ftype = func->type;
@@ -863,8 +858,9 @@ bool interpret(Module *m, uint32_t *pc) {
                 }
 
                 if (TRACE) {
-                    debug("      - table idx: %d, calling function fidx: %d at: 0x%x\n",
-                        val, fidx, *pc);
+                    debug("      - tidx: %d, table idx: %d, "
+                          "calling function fidx: %d at: 0x%x\n",
+                        tidx, val, fidx, m->pc);
                 }
             }
             continue;
@@ -888,7 +884,7 @@ bool interpret(Module *m, uint32_t *pc) {
         // Variable access
         //
         case 0x20:  // get_local
-            arg = read_LEB(bytes, pc, 32);
+            arg = read_LEB(bytes, &m->pc, 32);
             if (TRACE) {
                 debug("      - arg: 0x%x, got %s\n",
                        arg, value_repr(&stack[m->fp+arg]));
@@ -896,7 +892,7 @@ bool interpret(Module *m, uint32_t *pc) {
             stack[++m->sp] = stack[m->fp+arg];
             continue;
         case 0x21:  // set_local
-            arg = read_LEB(bytes, pc, 32);
+            arg = read_LEB(bytes, &m->pc, 32);
             stack[m->fp+arg] = stack[m->sp--];
             if (TRACE) {
                 debug("      - arg: 0x%x, to %s\n",
@@ -904,7 +900,7 @@ bool interpret(Module *m, uint32_t *pc) {
             }
             continue;
         case 0x22:  // tee_local
-            arg = read_LEB(bytes, pc, 32);
+            arg = read_LEB(bytes, &m->pc, 32);
             stack[m->fp+arg] = stack[m->sp];
             if (TRACE) {
                 debug("      - arg: 0x%x, to %s\n",
@@ -912,7 +908,7 @@ bool interpret(Module *m, uint32_t *pc) {
             }
             continue;
         case 0x23:  // get_global
-            arg = read_LEB(bytes, pc, 32);
+            arg = read_LEB(bytes, &m->pc, 32);
             if (TRACE) {
                 debug("      - arg: 0x%x, got %s\n",
                        arg, value_repr(&m->globals[arg]));
@@ -920,7 +916,7 @@ bool interpret(Module *m, uint32_t *pc) {
             stack[++m->sp] = m->globals[arg];
             continue;
         case 0x24:  // set_global
-            arg = read_LEB(bytes, pc, 32);
+            arg = read_LEB(bytes, &m->pc, 32);
             m->globals[arg] = stack[m->sp--];
             if (TRACE) {
                 debug("      - arg: 0x%x, to %s\n",
@@ -932,12 +928,12 @@ bool interpret(Module *m, uint32_t *pc) {
         // Memory-related operators
         //
         case 0x3f:  // current_memory
-            read_LEB(bytes, pc, 32); // ignore reserved
+            read_LEB(bytes, &m->pc, 32); // ignore reserved
             stack[++m->sp].value_type = I32;
             stack[m->sp].value.uint32 = m->memory.pages;
             continue;
         case 0x40:  // grow_memory
-            read_LEB(bytes, pc, 32); // ignore reserved
+            read_LEB(bytes, &m->pc, 32); // ignore reserved
             uint32_t prev_pages = m->memory.pages;
             uint32_t delta = stack[m->sp].value.uint32;
             stack[m->sp].value.uint32 = prev_pages;
@@ -957,8 +953,8 @@ bool interpret(Module *m, uint32_t *pc) {
 
         // Memory load operators
         case 0x28 ... 0x35:
-            flags = read_LEB(bytes, pc, 32);
-            offset = read_LEB(bytes, pc, 32);
+            flags = read_LEB(bytes, &m->pc, 32);
+            offset = read_LEB(bytes, &m->pc, 32);
             addr = stack[m->sp--].value.uint32;
             if (flags != 2 && TRACE) {
                 info("      - unaligned load - flags: 0x%x,"
@@ -1023,8 +1019,8 @@ bool interpret(Module *m, uint32_t *pc) {
 
         // Memory store operators
         case 0x36 ... 0x3e:
-            flags = read_LEB(bytes, pc, 32);
-            offset = read_LEB(bytes, pc, 32);
+            flags = read_LEB(bytes, &m->pc, 32);
+            offset = read_LEB(bytes, &m->pc, 32);
             StackValue *sval = &stack[m->sp--];
             addr = stack[m->sp--].value.uint32;
             if (flags != 2 && TRACE) {
@@ -1067,23 +1063,23 @@ bool interpret(Module *m, uint32_t *pc) {
         //
         case 0x41:  // i32.const
             stack[++m->sp].value_type = I32;
-            stack[m->sp].value.uint32 = read_LEB_signed(bytes, pc, 32);
+            stack[m->sp].value.uint32 = read_LEB_signed(bytes, &m->pc, 32);
             continue;
         case 0x42:  // i64.const
             stack[++m->sp].value_type = I64;
-            stack[m->sp].value.int64 = read_LEB_signed(bytes, pc, 64);
+            stack[m->sp].value.int64 = read_LEB_signed(bytes, &m->pc, 64);
             continue;
         case 0x43:  // f32.const
             stack[++m->sp].value_type = F32;
-            memcpy(&stack[m->sp].value.uint32, bytes+*pc, 4);
-            *pc += 4;
-            //stack[m->sp].value.uint32 = read_LEB_signed(bytes, pc, 32);
+            memcpy(&stack[m->sp].value.uint32, bytes+m->pc, 4);
+            m->pc += 4;
+            //stack[m->sp].value.uint32 = read_LEB_signed(bytes, pm->c, 32);
             continue;
         case 0x44:  // f64.const
             stack[++m->sp].value_type = F64;
-            memcpy(&stack[m->sp].value.uint64, bytes+*pc, 8);
-            *pc += 8;
-            //stack[m->sp].value.uint64 = read_LEB_signed(bytes, pc, 64);
+            memcpy(&stack[m->sp].value.uint64, bytes+m->pc, 8);
+            m->pc += 8;
+            //stack[m->sp].value.uint64 = read_LEB_signed(bytes, m->pc, 64);
             continue;
 
         //
@@ -1466,6 +1462,25 @@ bool interpret(Module *m, uint32_t *pc) {
     }
 }
 
+void run_init_expr(Module *m, uint8_t type, uint32_t *pc) {
+    // Run the init_expr
+    Block block = { .block_type = 0x01,
+                    .type = get_block_type(type),
+                    .start_addr = *pc };
+    m->pc = *pc;
+    push_block(m, &block, m->sp);
+    // WARNING: running code here to get initial value!
+    info("  running init_expr at 0x%x: %s\n",
+            m->pc, block_repr(&block));
+    interpret(m);
+    *pc = m->pc;
+
+    ASSERT(m->stack[m->sp].value_type == type,
+            "init_expr type mismatch 0x%x != 0x%x",
+            m->stack[m->sp].value_type, type);
+}
+
+
 
 //
 // Public API
@@ -1482,31 +1497,6 @@ uint32_t get_export_fidx(Module *m, char *name) {
     }
     return -1;
 }
-
-bool call_function32(Module *m, uint32_t fidx, uint32_t *res) {
-    uint32_t pc = 0;
-    bool result;
-
-    if (fidx < m->import_count) {
-        thunk(m, fidx);        // import/thunk call
-    } else {
-        do_call(m, fidx, &pc);  // regular function call
-    }
-
-    result = interpret(m, &pc);
-
-    if (result) {
-        if (TRACE && DEBUG) { dump_stacks(m); }
-        ASSERT(m->stack[m->sp].value_type == I32,
-               "call_function32 fidx: 0x%x did not return I32", fidx);
-        *res = m->stack[m->sp].value.uint32;
-        return 0;
-    } else {
-        error("Exception: %s\n", exception);
-        return 1;
-    }
-}
-
 
 Module *load_module(char *path, Options options) {
     uint32_t  mod_len;
@@ -1771,19 +1761,9 @@ Module *load_module(char *path, Options options) {
                                         sizeof(StackValue), "globals");
                 m->globals[gidx].value_type = type;
 
-                // Run the init_expr
-                Block block = { .block_type = 0x01,
-                                .type = get_block_type(type),
-                                .start_addr = pos };
-                push_block(m, &block, m->sp, 0);
-                // WARNING: running code here to get initial value!
-                info("  running init_expr at 0x%x: %s\n",
-                     pos, block_repr(&block));
-                interpret(m, &pos);
+                // Run the init_expr to get global value
+                run_init_expr(m, type, &pos);
 
-                ASSERT(m->stack[m->sp].value_type == type,
-                       "Global type mismatch 0x%x != 0x%x",
-                       m->stack[m->sp].value_type, type);
                 m->globals[gidx] = m->stack[m->sp--];
             }
             pos = start_pos+slen;
@@ -1819,26 +1799,59 @@ Module *load_module(char *path, Options options) {
                 ASSERT(index == 0, "Only 1 default table in MVP");
 
                 // Run the init_expr to get offset
-                Block block = { .block_type = 0x01,
-                                .type = get_block_type(I32),
-                                .start_addr = pos };
-                push_block(m, &block, m->sp, 0);
-                // WARNING: running code here to get offset!
-                info("  running init_expr at 0x%x: %s\n",
-                     pos, block_repr(&block));
-                interpret(m, &pos);
+                run_init_expr(m, I32, &pos);
+
                 uint32_t offset = m->stack[m->sp--].value.uint32;
+
+                if (m->options.mangle_table_index) {
+                    // offset is the table address + the index (not sized for the
+                    // pointer size) so get the actual (sized) index
+                    debug("   origin offset offset: 0x%x, new offset: 0x%x\n",
+                          offset, offset - (uint32_t)m->table.entries);
+                    offset = offset - (uint32_t)m->table.entries;
+                }
 
                 uint32_t num_elem = read_LEB(bytes, &pos, 32);
                 warn("  table.entries: %p, offset: 0x%x\n", m->table.entries, offset);
-                ASSERT(offset+num_elem <= m->table.size,
-                       "table overflow %d+%d > %d\n", offset, num_elem,
-                       m->table.size);
+                if (!m->options.disable_memory_bounds) {
+                    ASSERT(offset+num_elem <= m->table.size,
+                        "table overflow %d+%d > %d\n", offset, num_elem,
+                        m->table.size);
+                }
                 for (uint32_t n=0; n<num_elem; n++) {
+                    debug("  write table entries %p, offset: 0x%x, n: 0x%x, addr: %p\n",
+                            m->table.entries, offset, n, &m->table.entries[offset+n]);
                     m->table.entries[offset+n] = read_LEB(bytes, &pos, 32);
                 }
             }
             pos = start_pos+slen;
+            break;
+        // 9 and 11 are similar so keep them together, 10 is below 11
+        case 11:
+            warn("Parsing Data(11) section (length: 0x%x)\n", slen);
+            uint32_t seg_count = read_LEB(bytes, &pos, 32);
+            for (uint32_t s=0; s<seg_count; s++) {
+                uint32_t midx = read_LEB(bytes, &pos, 32);
+                ASSERT(midx == 0, "Only 1 default memory in MVP");
+
+                // Run the init_expr to get the offset
+                run_init_expr(m, I32, &pos);
+
+                uint32_t offset = m->stack[m->sp--].value.uint32;
+
+                // Copy the data to the memory offset
+                uint32_t size = read_LEB(bytes, &pos, 32);
+                if (!m->options.disable_memory_bounds) {
+                    ASSERT(offset+size <= m->memory.pages*pow(2,16),
+                        "memory overflow %d+%d > %d\n", offset, size,
+                        (uint32_t)(m->memory.pages*pow(2,16)));
+                }
+                info("  setting 0x%x bytes of memory at offset 0x%x\n",
+                     size, offset);
+                memcpy(m->memory.bytes+offset, bytes+pos, size);
+                pos += size;
+            }
+
             break;
         case 10:
             warn("Parsing Code(10) section (length: 0x%x)\n", slen);
@@ -1883,38 +1896,6 @@ Module *load_module(char *path, Options options) {
                 pos = function->end_addr + 1;
             }
             break;
-        case 11:
-            warn("Parsing Data(11) section (length: 0x%x)\n", slen);
-            uint32_t seg_count = read_LEB(bytes, &pos, 32);
-            for (uint32_t s=0; s<seg_count; s++) {
-                uint32_t midx = read_LEB(bytes, &pos, 32);
-                ASSERT(midx == 0, "Only 1 default memory in MVP");
-
-                // Run the init_expr
-                Block block = { .block_type = 0x01,
-                                .type = get_block_type(I32),
-                                .start_addr = pos };
-                push_block(m, &block, m->sp, 0);
-                // WARNING: running code here to get offset!
-                info("  running init_expr at 0x%x: %s\n",
-                     pos, block_repr(&block));
-                interpret(m, &pos);
-                uint32_t offset = m->stack[m->sp--].value.uint32;
-
-                // Copy the data to the memory offset
-                uint32_t size = read_LEB(bytes, &pos, 32);
-                if (!m->options.disable_memory_bounds) {
-                    ASSERT(offset+size <= m->memory.pages*pow(2,16),
-                        "memory overflow %d+%d > %d\n", offset, size,
-                        (uint32_t)(m->memory.pages*pow(2,16)));
-                }
-                info("  setting 0x%x bytes of memory at offset 0x%x\n",
-                     size, offset);
-                memcpy(m->memory.bytes+offset, bytes+pos, size);
-                pos += size;
-            }
-
-            break;
         default:
             FATAL("Section %d unimplemented\n", id);
             pos += slen;
@@ -1926,7 +1907,7 @@ Module *load_module(char *path, Options options) {
     find_blocks(m);
 
     if (m->start_function != -1) {
-        uint32_t pc = 0, fidx = m->start_function;
+        uint32_t fidx = m->start_function;
         bool     result;
         warn("Running start function 0x%x ('%s')\n",
              fidx, m->functions[fidx].export_name);
@@ -1934,22 +1915,27 @@ Module *load_module(char *path, Options options) {
         if (TRACE && DEBUG) { dump_stacks(m); }
 
         if (fidx < m->import_count) {
-            thunk(m, fidx);        // import/thunk call
+            thunk_out(m, fidx);     // import/thunk call
         } else {
-            do_call(m, fidx, &pc);  // regular function call
+            setup_call(m, fidx);    // regular function call
         }
 
         if (m->csp < 0) {
             // start function was a direct external call
             result = true;
         } else {
-            // run the function setup by do_call
-            result = interpret(m, &pc);
+            // run the function setup by setup_call
+            result = interpret(m);
         }
         if (!result) {
             FATAL("Exception: %s\n", exception);
         }
     }
+
+    // TODO: global state, clean up somehow
+    // This global is used by setup_thunk_in since signal handlers don't have
+    // a way to pass arguments when they are setup.
+    _wa_current_module_ = m;
 
     return m;
 }
@@ -1957,7 +1943,7 @@ Module *load_module(char *path, Options options) {
 // if entry == NULL,  attempt to invoke 'main' or '_main'
 // Return value of false means exception occured
 bool invoke(Module *m, char *entry, int argc, char **argv) {
-    uint32_t  fidx = -1, pc = 0;
+    uint32_t  fidx = -1;
     Type     *type;
     bool      result;
 
@@ -1977,11 +1963,6 @@ bool invoke(Module *m, char *entry, int argc, char **argv) {
         FATAL("no exported function named '%s'\n", entry);
     }
     type = m->functions[fidx].type;
-
-    // Empty stacks
-    m->sp  = -1;
-    m->fp  = -1;
-    m->csp = -1;
 
     // Parse and add arguments to the stack
     for (int i=0; i<argc; i++) {
@@ -2011,9 +1992,9 @@ bool invoke(Module *m, char *entry, int argc, char **argv) {
 
     if (TRACE && DEBUG) { dump_stacks(m); }
 
-    do_call(m, fidx, &pc);
+    setup_call(m, fidx);
 
-    result = interpret(m, &pc);
+    result = interpret(m);
 
     if (TRACE && DEBUG) { dump_stacks(m); }
 

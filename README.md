@@ -27,22 +27,23 @@ apt-get install lib32gcc-4.9-dev libSDL2-dev:i386 libedit-dev:i386
 ```
 
 To compile wast source files to binary wasm modules you will need the
-wast2wasm tool from [wabt](https://github.com/WebAssembly/wabt). To
-compile C programs to wasm modules you will need
-[emscripten](https://github.com/kripken/emscripten) with
+wasm-as tool from [Binaryen](https://github.com/WebAssembly/binaryen).
+To compile C programs to wasm modules you will need a patched version
+of [emscripten](https://github.com/kanaka/emscripten), the incoming
+branch of [fastcomp](https://github.com/kripken/emscripten-fastcomp)
+and the master branch of
 [binaryen](https://github.com/WebAssembly/binaryen).
 
 As an alternative to downloading and building the above tools, the
-`kanaka/webassembly` docker image (1.5GB) has 32-bit gcc
-compiler/libraries, emscripten, binaryen, and wabt (wast2wasm)
-preinstalled. The docker image can be started with appropriate file
-mounts like this:
+`kanaka/emscripten` docker image (1.7GB) has a 32-bit gcc
+compiler/libraries, emscripten, and binaryen preinstalled. The docker
+image can be started with appropriate file mounts like this:
 
 ```
-docker run -v `pwd`:/wac -w /wac -it kanaka/webassembly bash
+docker run -v `pwd`:/wac -w /wac -it kanaka/emscripten bash
 ```
 
-The build commands below can be run within the docker container.
+All the build commands below can be run within the docker container.
 
 
 ## wac usage
@@ -105,6 +106,10 @@ INFO: OpenGL shaders: ENABLED
 INFO: Created renderer: opengl
 # Blue Window appears for 2 seconds.
 Done.
+
+$ make examples_c/triangle.wasm
+$ ./wace examples_c/triangle.wasm
+# A colorfully shaded triangle is rendered
 ```
 
 ## Running WebAssembly spec tests
