@@ -124,7 +124,7 @@ git clone https://github.com/WebAssembly/spec
 ```
 
 You will need `wast2wasm` to compile the spec tests. Check-out and
-build [wabt](https://) (wabbit):
+build [wabt](https://github.com/WebAssembly/wabt) (wabbit):
 
 ```
 git clone --recursive https://github.com/WebAssembly/wabt
