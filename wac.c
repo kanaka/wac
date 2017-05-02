@@ -77,6 +77,10 @@ int main(int argc, char **argv) {
             char **tokens = split_string(line, &token_cnt);
             if (token_cnt == 0) { continue; }
 
+            // Reset the stacks
+            m->sp = -1;
+            m->fp = -1;
+            m->csp = -1;
             res = invoke(m, tokens[0], token_cnt-1, tokens+1);
 	    if (res) {
 		if (m->sp >= 0) {

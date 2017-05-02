@@ -7,12 +7,12 @@ specification.
 There are two different builds of wac:
 
 * **wac**: (WebAssembly in C) Minimal client with an interactive REPL
-  mode. Designed to run standalone wasm files compiled with wast2wasm.
-  Passes most spec tests apart from some multi-module import/export
-  tests.
+  mode. Designed to run standalone wasm files compiled with
+  `wast2wasm` or `wasm-as`. Passes most spec tests apart from some
+  multi-module import/export tests.
 * **wace**: (WebAssembly in C with Emscripten) Client with host
   library/memory integration. Designed to run wasm code that has been
-  built using Emscripten (using `-s SIDE_MODULE=1`).
+  built with Emscripten (using `-s SIDE_MODULE=1 -s LEGALIZE_JS_FFI=0`).
 
 ## Prerequisites
 
@@ -28,16 +28,16 @@ apt-get install lib32gcc-4.9-dev libSDL2-dev:i386 libedit-dev:i386
 
 To compile wast source files to binary wasm modules you will need the
 wasm-as tool from [Binaryen](https://github.com/WebAssembly/binaryen).
-To compile C programs to wasm modules you will need a patched version
-of [emscripten](https://github.com/kanaka/emscripten), the incoming
-branch of [fastcomp](https://github.com/kripken/emscripten-fastcomp)
-and the master branch of
-[binaryen](https://github.com/WebAssembly/binaryen).
+To compile C programs to wasm modules you will need a [patched version
+of emscripten](https://github.com/kanaka/emscripten), the [incoming
+branch of fastcomp](https://github.com/kripken/emscripten-fastcomp)
+and the [master branch of
+binaryen](https://github.com/WebAssembly/binaryen).
 
 As an alternative to downloading and building the above tools, the
-`kanaka/emscripten` docker image (1.7GB) has a 32-bit gcc
-compiler/libraries, emscripten, and binaryen preinstalled. The docker
-image can be started with appropriate file mounts like this:
+`kanaka/emscripten` docker image (1.7GB) has 32-bit gcc
+compiler/libraries, patched emscripten, and binaryen preinstalled. The
+docker image can be started with appropriate file mounts like this:
 
 ```
 docker run -v `pwd`:/wac -w /wac -it kanaka/emscripten bash
@@ -54,7 +54,7 @@ Build wac:
 $ make wac
 ```
 
-Use `wast2wasm` to compile a simple wast program to a wasm:
+Use `wasm-as` to compile a simple wast program to a wasm:
 
 ```bash
 $ make examples_wast/arith.wasm
@@ -123,10 +123,18 @@ Check out the spec:
 git clone https://github.com/WebAssembly/spec
 ```
 
+You will need `wast2wasm` to compile the spec tests. Check-out and
+build [wabt](https://) (wabbit):
+
+```
+git clone --recursive https://github.com/WebAssembly/wabt
+make -C wabt gcc-release
+```
+
 Run the `func.wast` test file (to test function calls) from the spec:
 
 ```
-./runtest.py --wast2wasm /path/to/wast2wasm --interpreter ./wac spec/test/core/func.wast
+./runtest.py --wast2wasm ./wabt/out/gcc/Release/wast2wasm --interpreter ./wac spec/test/core/func.wast
 ```
 
 

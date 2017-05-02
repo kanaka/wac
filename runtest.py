@@ -305,6 +305,16 @@ def invoke(r, args, cmd):
 def test_assert(r, opts, mode, cmd, expected):
     log("Testing(%s) %s = %s" % (mode, cmd, expected))
 
+    out = invoke(r, opts, cmd)
+    outs = [''] + out.split('\n')[1:]
+    out = outs[-1]
+
+    if mode=='trap':
+        o = re.sub('^Exception: ', '', out)
+        e = re.sub('^Exception: ', '', expected)
+        if o.find(e) >= 0 or e.find(o) >= 0:
+            return True
+
     expects = set([expected])
     m0 = re.search("^(-?[0-9\.e-]+):f32$", expected)
     if m0:
@@ -320,11 +330,6 @@ def test_assert(r, opts, mode, cmd, expected):
         expects.add("nan:f64")
     if expected == "nan:f64":
         expects.add("-nan:f64")
-
-    out = invoke(r, opts, cmd)
-    outs = [''] + out.split('\n')[1:]
-    #out = "\n".join(outs)
-    out = outs[-1]
 
     # munge the output some
     out = re.sub("L:i32$", ':i32', out)
@@ -375,21 +380,11 @@ def test_assert(r, opts, mode, cmd, expected):
         results.add("%f:f64" % val)
         results.add("%.7g:f64" % val)
 
-    if (expected.find("unreachable") > -1
-            and out.find("unreachable") > -1):
-        pass
-    elif (expected.find("call signature mismatch") > -1
-            and out.find("call signature mismatch") > -1):
-        pass
-#    elif returncode==1 and err.find(expected) > -1:
-#        pass
-    elif not expects.intersection(results):
-#        if returncode==1:
-#            raise Exception("Failed:\n  expected: '%s'\n  got: '%s'" % (
-#                expected, err))
-#        else:
-            raise Exception("Failed:\n  expected: '%s' %s\n  got: '%s' %s" % (
-                expected, expects, out, results))
+    if not expects.intersection(results):
+        raise Exception("Failed:\n  expected: '%s' %s\n  got: '%s' %s" % (
+            expected, expects, out, results))
+
+    return True
 
 def test_assert_return(r, opts, form):
     # params, return
@@ -506,7 +501,6 @@ if __name__ == "__main__":
                 file(wast_tempfile, 'w').write(form)
                 log("Compiling WASM to '%s'" % wasm_tempfile)
                 cmd = [ opts.wast2wasm,
-                        #"--no-check-assert-invalid-and-malformed",
                         "--no-check",
                         wast_tempfile,
                         "-o",
