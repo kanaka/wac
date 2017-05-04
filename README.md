@@ -99,17 +99,26 @@ hello world
 $ make examples_c/hello2.wasm
 $ ./wace examples_c/hello2.wasm
 hello malloc people
+```
 
+Use emscripten/binaryen to compile some C SDL programs and run them
+using wace:
+
+```bash
 $ make examples_c/hello_sdl.wasm
 $ ./wace examples_c/hello_sdl.wasm
 INFO: OpenGL shaders: ENABLED
 INFO: Created renderer: opengl
-# Blue Window appears for 2 seconds.
+# Blue Window displayed for 2 seconds
 Done.
 
 $ make examples_c/triangle.wasm
 $ ./wace examples_c/triangle.wasm
 # A colorfully shaded triangle is rendered
+
+$ make examples_c/hello_owl/hello_owl.wasm
+$ ./wace examples_c/hello_owl/hello_owl.wasm
+# An Owl image displayed for 2 seconds
 ```
 
 ## Running WebAssembly spec tests

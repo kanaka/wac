@@ -77,6 +77,9 @@ RUN rm /bin/sh && ln -s /bin/bash /bin/sh \
 &&	cp -R /usr/share/locale/en\@* /tmp/ && rm -rf /usr/share/locale/* && mv /tmp/en\@* /usr/share/locale/ \
 &&	echo "BUILD FINISHED"
 
+# TODO: move up
+RUN apt-get -y install libsdl2-image-2.0-0:i386 libsdl2-image-dev:i386
+
 # SETUP SDK
 ENV EMSCRIPTEN=/emsdk_portable/emscripten/kanaka
 WORKDIR /src

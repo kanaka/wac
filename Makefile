@@ -15,7 +15,7 @@ CC = gcc -std=gnu99 -m32
 EMCC = emcc $(CFLAGS) -s WASM=1 -s SIDE_MODULE=1 -s LEGALIZE_JS_FFI=0
 
 WAC_LIBS = m dl $(RL_LIBRARY) $(EXTRA_WAC_LIBS)
-WACE_LIBS = m dl $(RL_LIBRARY) SDL2 GL glut $(EXTRA_WACE_LIBS)
+WACE_LIBS = m dl $(RL_LIBRARY) SDL2 SDL2_image GL glut $(EXTRA_WACE_LIBS)
 
 ifeq (,$(USE_READLINE))
     RL_LIBRARY ?= edit
@@ -71,5 +71,5 @@ examples_c/%.wast: examples_c/%.wasm
 	wasm-dis $< -o $@
 
 examples_c/%: examples_c/%.c
-	$(CC) $< -o $@ -lSDL2 -lGL -lglut
+	$(CC) $< -o $@ -lSDL2 -lSDL2_image -lGL -lglut
 

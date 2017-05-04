@@ -1,9 +1,12 @@
 #include <stdio.h>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
-#include <emscripten.h>
 #include <unistd.h>
 #include <stdlib.h>
+
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
 
 /**
  * Loads the image located at 'fileName' and copies it to the
@@ -14,7 +17,6 @@ int testImage(SDL_Renderer* renderer, const char* fileName)
   SDL_Surface *image = IMG_Load(fileName);
   if (!image)
   {
-     printf("IMG_Load: %s\n", IMG_GetError());
      return 0;
   }
   int result = image->w;
@@ -60,7 +62,14 @@ int main()
   /**
    * Load and copy the test image to the renderer
    */
-  result |= testImage(renderer, "assets/owl.png");
+  result = testImage(renderer, "assets/owl.png");
+  if (result == 0) {
+    result = testImage(renderer, "examples_c/hello_owl/assets/owl.png");
+  }
+  if (result == 0) {
+     printf("IMG_Load: %s\n", IMG_GetError());
+     return 0;
+  }
 
   /**
    * Show what is in the renderer
@@ -68,6 +77,8 @@ int main()
   SDL_RenderPresent(renderer);
 
   printf("you should see an image.\n");
+
+  SDL_Delay(2000);
 
   return 0;
 }
