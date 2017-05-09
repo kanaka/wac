@@ -601,7 +601,7 @@ void (*setup_thunk_in(uint32_t fidx))() {
     case 0x800      : f = (void (*)(void)) thunk_in_0_0; break;
     case 0x8101     : f = (void (*)(void)) thunk_in_i_i; break;
     case 0x80011    : f = (void (*)(void)) thunk_in_0_ii; break;
-    default: FATAL("unsupported thunk_in mask 0x%x\n", thunk_mask);
+    default: FATAL("unsupported thunk_in mask 0x%llx\n", thunk_mask);
     }
 
     return f;
@@ -651,7 +651,7 @@ bool interpret(Module *m) {
 
     uint32_t     cur_pc;
     Block       *block;
-    uint32_t     arg, val, fidx, tidx, cond, depth, count, didx;
+    uint32_t     arg, val, fidx, tidx, cond, depth, count;
     uint32_t     flags, offset, addr;
     uint8_t     *maddr, *mem_end;
     uint32_t    *depths;
@@ -772,7 +772,7 @@ bool interpret(Module *m) {
             }
             depth = read_LEB(bytes, &m->pc, 32);
 
-            didx = stack[m->sp--].value.uint32;
+            int32_t didx = stack[m->sp--].value.uint32;
             if (didx >= 0 && didx < count) {
                 depth = depths[didx];
             }

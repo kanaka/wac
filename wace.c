@@ -5,7 +5,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include <sys/mman.h>
-#include <ucontext.h>
+#include <sys/ucontext.h>
 
 #include "util.h"
 #include "wa.h"
