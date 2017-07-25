@@ -4,6 +4,12 @@ A Minimal WebAssembly interpreter written in C. Supports the
 WebAssembly MVP (minimum viable product) version of the WebAssembly
 specification.
 
+**This is an experimental branch that attempts to run WebAssembly code
+in a sandboxed environment. Although I like the way that wac/e 
+dynamically loads symbols, I don't particularly like that it is possible 
+to get access to *any* symbol in the host. 
+Goal: Find a way to let the host decide what symbols to expose...**
+
 There are two different builds of wac:
 
 * **wac**: (WebAssembly in C) Minimal client with an interactive REPL
