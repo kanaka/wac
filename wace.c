@@ -126,6 +126,21 @@ void _env__nullFunc_X_(uint32_t x) {
     FATAL("_env__nullFunc_X_ 0x%x\n", x);
 }
 
+
+HostExport* exports_init() {
+    HostExport *h = NULL;
+    // This are the minimum exports to make the hello world examples run.
+    // Of course, SDL and other stuff is broken without explicit exports.
+    h = declare_host_export(h, "env.memory", &_env__memory_);
+    h = declare_host_export(h, "env.table", &_env__table_);
+    h = declare_host_export(h, "env.memoryBase", &_env__memoryBase_);
+    h = declare_host_export(h, "env.tableBase", &_env__tableBase_);
+    h = declare_host_export(h, "env._puts", &puts);
+    h = declare_host_export(h, "env._malloc", &malloc);
+    h = declare_host_export(h, "env._printf", &_env___printf_);
+    return h;
+}
+
 /////////////////////////////////////////////////////////
 // Command line
 
@@ -136,13 +151,14 @@ int main(int argc, char **argv) {
     if (argc < 2) { usage(argv[0]); }
     mod_path = argv[1];
 
+    HostExport *exports = exports_init();
     emscripten_init();
 
     // Load the module
     Options opts = { .disable_memory_bounds = true,
                      .mangle_table_index    = true,
                      .dlsym_trim_underscore = true };
-    Module *m = load_module(mod_path, opts);
+    Module *m = load_module(mod_path, opts, exports);
 
     thunk_in_trap_init(m);
 

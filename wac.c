@@ -56,7 +56,7 @@ int main(int argc, char **argv) {
 
     // Load the module
     Options opts;
-    Module *m = load_module(mod_path, opts);
+    Module *m = load_module(mod_path, opts, NULL);
 
     if (!repl) {
         // Invoke one function and exit

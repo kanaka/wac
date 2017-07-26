@@ -1498,7 +1498,7 @@ uint32_t get_export_fidx(Module *m, char *name) {
     return -1;
 }
 
-Module *load_module(char *path, Options options) {
+Module *load_module(char *path, Options options, HostExport *host_exports) {
     uint32_t  mod_len;
     uint8_t  *bytes;
     uint8_t   vt;
@@ -1609,34 +1609,44 @@ Module *load_module(char *path, Options options) {
                 void *val;
                 char *err, *sym = malloc(module_len + field_len + 5);
 
-                do {
-                    // Try using module as handle filename
-                    if (resolvesym(import_module, import_field, &val, &err)) { break; }
+                if(host_exports != NULL) {
+                    // Here is the plan:
+                    //  1. Is module.field in the hosts export table (->todo)? Then use that entry.
+                    //  2. Otherwise check if module.field is whitelisted for dynamic import. If yes, proceed.
 
-                    // Try concatenating module and field using underscores
-                    // Also, replace '-' with '_'
-                    sprintf(sym, "_%s__%s_", import_module, import_field);
-                    int sidx = -1;
-                    while (sym[++sidx]) {
-                        if (sym[sidx] == '-') { sym[sidx] = '_'; }
-                    }
-                    if (resolvesym(NULL, sym, &val, &err)) { break; }
+                    sprintf(sym, "%s.%s", import_module, import_field);
+                    val = find_host_export(host_exports, sym);
+                    if(val == NULL)
+                        FATAL("Error: Unknown host export '%s'", sym);
+                }else
+                    do {
+                        // Try using module as handle filename
+                        if (resolvesym(import_module, import_field, &val, &err)) { break; }
 
-                    // If enabled, try without the leading underscore (added
-                    // by emscripten for external symbols)
-                    if (m->options.dlsym_trim_underscore &&
-                        (strncmp("env", import_module, 4) == 0) &&
-                        (strncmp("_", import_field, 1) == 0)) {
-                        sprintf(sym, "%s", import_field+1);
+                        // Try concatenating module and field using underscores
+                        // Also, replace '-' with '_'
+                        sprintf(sym, "_%s__%s_", import_module, import_field);
+                        int sidx = -1;
+                        while (sym[++sidx]) {
+                            if (sym[sidx] == '-') { sym[sidx] = '_'; }
+                        }
                         if (resolvesym(NULL, sym, &val, &err)) { break; }
-                    }
 
-                    // Try the plain symbol by itself with module name/handle
-                    sprintf(sym, "%s", import_field);
-                    if (resolvesym(NULL, sym, &val, &err)) { break; }
+                        // If enabled, try without the leading underscore (added
+                        // by emscripten for external symbols)
+                        if (m->options.dlsym_trim_underscore &&
+                            (strncmp("env", import_module, 4) == 0) &&
+                            (strncmp("_", import_field, 1) == 0)) {
+                            sprintf(sym, "%s", import_field+1);
+                            if (resolvesym(NULL, sym, &val, &err)) { break; }
+                        }
 
-                    FATAL("Error: %s\n", err);
-                } while(false);
+                        // Try the plain symbol by itself with module name/handle
+                        sprintf(sym, "%s", import_field);
+                        if (resolvesym(NULL, sym, &val, &err)) { break; }
+
+                        FATAL("Error: %s\n", err);
+                    } while(false);
 
                 debug("  found '%s.%s' as symbol '%s' at address %p\n",
                       import_module, import_field, sym, val);
@@ -1999,4 +2009,64 @@ bool invoke(Module *m, char *entry, int argc, char **argv) {
     if (TRACE && DEBUG) { dump_stacks(m); }
 
     return result;
+}
+
+
+HostExport* declare_host_export(HostExport *h, const char *name, void *object)
+{
+    HostExport *first = h;
+    HostExport *prev = NULL;
+    HostExport *newex = NULL;
+
+    for(;;) {
+        if(h == NULL)
+            break;
+        int c = strcmp(name, h->name);
+        if(c == 0) {
+            warn("Overwriting Export: %s\n", name);
+            newex = h;
+            break;
+        }
+        else if(c < 0) {
+            break;
+        }
+        else if(c > 0) {
+            prev = h;
+            h = h->next;
+        }
+    }
+
+    if(newex == NULL)
+        newex = acalloc(1, sizeof(HostExport), "HostExport");
+    if(newex != h) {
+        newex->next = h;
+        if(prev == NULL)
+            first = newex;
+        else
+            prev->next = newex;
+    }
+    newex->name = name;
+    newex->object = object;
+
+    return first;
+}
+
+void* find_host_export(HostExport *h, const char *name)
+{
+    while(h != NULL) {
+        if(strcmp(name, h->name) == 0)
+            return h->object;
+        h = h->next;
+    }
+    return NULL;
+}
+
+void free_host_exports(HostExport *h)
+{
+    while(h != NULL) {
+        printf("%s\n", h->name);
+        HostExport *next = h->next;
+        free(h);
+        h = next;
+    }
 }
