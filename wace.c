@@ -19,7 +19,7 @@ void usage(char *prog) {
 // emscripten memory
 
 #define TOTAL_MEMORY  0x1000000 // 16MB
-#define TOTAL_TABLE   256
+#define TOTAL_TABLE   65536
 
 uint8_t  *_env__memory_ = 0;
 uint8_t  *_env__memoryBase_;
@@ -34,20 +34,20 @@ uint32_t **_env__DYNAMICTOP_PTR_;
 uint32_t *_env__tempDoublePtr_;
 
 
-// stuff i'm not sure about...
 uint32_t _env__STACKTOP_ = 0;
-uint32_t _env__STACK_MAX_ = 0;
+uint32_t _env__STACK_MAX_ = STACK_SIZE;  // CALLSTACK_SIZE?
 
 
 
 // Initialize memory globals and function/jump table
 void emscripten_init() {
     _env__memoryBase_ = calloc(TOTAL_MEMORY, sizeof(uint8_t));
+    _env__memory_ = _env__memoryBase_;
 
     //_env__tableBase_ = calloc(TOTAL_TABLE, sizeof(uint32_t));
 
-    //_env__table_ = calloc(TOTAL_TABLE, sizeof(uint32_t));
-    //_env__tableBase_ = 0;
+    _env__table_ = calloc(TOTAL_TABLE, sizeof(uint32_t));
+    _env__tableBase_ = _env__table_;
 
     // This arrangement correlates to the module mangle_table_offset option
     if (posix_memalign((void **)&_env__table_, sysconf(_SC_PAGESIZE),

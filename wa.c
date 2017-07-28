@@ -1675,7 +1675,7 @@ Module *load_module(char *path, Options options, HostExport *host_exports) {
                 case 0x01:  // Table
                     ASSERT(!m->table.entries,
                            "More than 1 table not supported\n");
-                    m->table.entries = val;
+                    //m->table.entries = val;
                     warn("  setting table.entries to: %p\n", *(uint32_t **)val);
                     m->table.entries = *(uint32_t **)val;
                     break;
