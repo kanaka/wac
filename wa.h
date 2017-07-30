@@ -149,11 +149,7 @@ typedef struct Module {
 } Module;
 
 
-typedef struct HostExport {
-    struct HostExport *next;
-    const char *name;
-    void *object;
-} HostExport;
+typedef void* (*HostExportCallback)(char*, char*);
 
 //
 // Function declarations (Public API)
@@ -164,11 +160,7 @@ char *value_repr(StackValue *v);
 uint32_t get_export_fidx(Module *m, char *name);
 void (*setup_thunk_in(uint32_t fidx))();
 bool interpret(Module *m);
-Module *load_module(char *path, Options opts, HostExport *host_exports);
+Module *load_module(char *path, Options opts, HostExportCallback host_export);
 bool invoke(Module *m, char *entry, int argc, char **argv);
-
-HostExport *declare_host_export(HostExport *h, const char *name, void *object);
-void* find_host_export(HostExport *h, const char *name);
-void free_host_exports(HostExport *h);
 
 #endif // of WAC_H

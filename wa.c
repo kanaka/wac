@@ -1498,7 +1498,7 @@ uint32_t get_export_fidx(Module *m, char *name) {
     return -1;
 }
 
-Module *load_module(char *path, Options options, HostExport *host_exports) {
+Module *load_module(char *path, Options options, HostExportCallback host_export) {
     uint32_t  mod_len;
     uint8_t  *bytes;
     uint8_t   vt;
@@ -1609,15 +1609,10 @@ Module *load_module(char *path, Options options, HostExport *host_exports) {
                 void *val;
                 char *err, *sym = malloc(module_len + field_len + 5);
 
-                if(host_exports != NULL) {
-                    // Here is the plan:
-                    //  1. Is module.field in the hosts export table (->todo)? Then use that entry.
-                    //  2. Otherwise check if module.field is whitelisted for dynamic import. If yes, proceed.
-
-                    sprintf(sym, "%s.%s", import_module, import_field);
-                    val = find_host_export(host_exports, sym);
+                if(host_export != NULL) {
+                    val = host_export(import_module, import_field);
                     if(val == NULL)
-                        FATAL("Error: Unknown host export '%s'", sym);
+                        FATAL("Error: Unknown host export '%s.%s'\n", import_module, import_field);
                 }else
                     do {
                         // Try using module as handle filename
@@ -2009,64 +2004,4 @@ bool invoke(Module *m, char *entry, int argc, char **argv) {
     if (TRACE && DEBUG) { dump_stacks(m); }
 
     return result;
-}
-
-
-HostExport* declare_host_export(HostExport *h, const char *name, void *object)
-{
-    HostExport *first = h;
-    HostExport *prev = NULL;
-    HostExport *newex = NULL;
-
-    for(;;) {
-        if(h == NULL)
-            break;
-        int c = strcmp(name, h->name);
-        if(c == 0) {
-            warn("Overwriting Export: %s\n", name);
-            newex = h;
-            break;
-        }
-        else if(c < 0) {
-            break;
-        }
-        else if(c > 0) {
-            prev = h;
-            h = h->next;
-        }
-    }
-
-    if(newex == NULL)
-        newex = acalloc(1, sizeof(HostExport), "HostExport");
-    if(newex != h) {
-        newex->next = h;
-        if(prev == NULL)
-            first = newex;
-        else
-            prev->next = newex;
-    }
-    newex->name = name;
-    newex->object = object;
-
-    return first;
-}
-
-void* find_host_export(HostExport *h, const char *name)
-{
-    while(h != NULL) {
-        if(strcmp(name, h->name) == 0)
-            return h->object;
-        h = h->next;
-    }
-    return NULL;
-}
-
-void free_host_exports(HostExport *h)
-{
-    while(h != NULL) {
-        printf("%s\n", h->name);
-        HostExport *next = h->next;
-        free(h);
-        h = next;
-    }
 }

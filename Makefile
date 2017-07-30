@@ -8,6 +8,7 @@ CFLAGS ?= -O2
 
 EXTRA_WAC_LIBS ?=
 EXTRA_WACE_LIBS ?=
+EXTRA_WACS_LIBS ?=
 
 ##########################################################
 
@@ -16,6 +17,7 @@ EMCC = emcc $(CFLAGS) -s WASM=1 -s SIDE_MODULE=1 -s LEGALIZE_JS_FFI=0
 
 WAC_LIBS = m dl $(RL_LIBRARY) $(EXTRA_WAC_LIBS)
 WACE_LIBS = m dl $(RL_LIBRARY) SDL2 SDL2_image GL glut $(EXTRA_WACE_LIBS)
+WACS_LIBS = m dl $(RL_LIBRARY) $(EXTRA_WACS_LIBS)
 
 ifeq (,$(USE_READLINE))
     RL_LIBRARY ?= edit
@@ -47,10 +49,13 @@ wac: wac.c wa.a
 wace: wace.c wa.a
 	$(CC) -rdynamic $^ -o $@ $(foreach l,$(WACE_LIBS),-l$(l))
 
+wacs: wacs.c wa.a
+	$(CC) -rdynamic $^ -o $@ $(foreach l,$(WACS_LIBS),-l$(l))
+
 
 .PHONY:
 clean:
-	rm -f *.o *.a wac wace wace-sdl.c \
+	rm -f *.o *.a wac wace wace-sdl.c wacs \
 	    examples_c/*.js examples_c/*.html \
 	    examples_c/*.wasm examples_c/*.wast \
 	    examples_wast/*.wasm
