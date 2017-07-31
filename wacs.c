@@ -31,19 +31,6 @@ void _spectest__print_(uint32_t val) {
 #define TOTAL_MEMORY  0x1000000 // 16MB
 #define TOTAL_TABLE   65536
 
-/*  memory layout
- *
- *  +-------------------+
- *  | Stack             |
- *  | ...               |
- *  | STACK_TOP         |
- *  | ...               |
- *  | STACK_MAX         |
- *  +-------------------+
- *  | ...               |
- *  | DYNAMIC_TOP       |
-*/
-
 typedef struct HostMemory {
     uint8_t *memory;
     uint32_t stack_top;
@@ -57,6 +44,7 @@ double    _global__NaN_         = NAN;
 double    _global__Infinity_    = INFINITY;
 uint32_t _env__zeroval_ = 0;
 HostMemory _memory_;
+HostMemory memory_dump;
 double _temp_double_ = 0;
 
 
@@ -88,6 +76,64 @@ void print_memory(HostMemory* mem, uint32_t start, uint32_t stop) {
     printf("_temp_double_: %f\n", _temp_double_);
 }
 
+#define ANSI_COLOR_DIFF    "\x1b[1m\x1b[31m"
+#define ANSI_COLOR_RESET   "\x1b[0m"
+
+void memdiff(void *a, void *b, size_t offset, size_t n) {
+    static const uint8_t colsize = 16;
+    size_t o = offset;
+    while(o < n) {
+        printf("%08x  ", o);
+        for(int i=0; i<colsize; i++) {
+            uint8_t m = *(uint8_t*)(a + i);
+            if(m == *(uint8_t*)(b + i))
+                printf("%02x ", m);
+            else
+                printf(ANSI_COLOR_DIFF "%02x " ANSI_COLOR_RESET, m);
+        }
+        for(int i=0; i<colsize; i++) {
+            char c = *(char*)(a + i);
+            if(c != *(char*)(b + i))
+                printf(ANSI_COLOR_DIFF);
+            if(c >= 32 && c < 127)
+                printf("%c", c);
+            else
+                printf(".");
+            printf(ANSI_COLOR_RESET);
+        }
+        printf("  ");
+        for(int i=0; i<colsize; i++) {
+            uint8_t m = *(uint8_t*)(b + i);
+            if(m == *(uint8_t*)(a + i))
+                printf("%02x ", m);
+            else
+                printf(ANSI_COLOR_DIFF "%02x " ANSI_COLOR_RESET, m);
+        }
+        for(int i=0; i<colsize; i++) {
+            char c = *(char*)(b + i);
+            if(c != *(char*)(a + i))
+                printf(ANSI_COLOR_DIFF);
+            if(c >= 32 && c < 127)
+                printf("%c", c);
+            else
+                printf(".");
+            printf(ANSI_COLOR_RESET);
+        }
+        o += colsize;
+        a += colsize;
+        b += colsize;
+        printf("\n");
+    }
+}
+
+void _env__memdump_() {
+    memcpy(memory_dump.memory, _memory_.memory, TOTAL_MEMORY);
+}
+
+void _env__memdiff_(uint32_t offset, uint32_t n) {
+    memdiff(_memory_.memory, memory_dump.memory, offset, n);
+}
+
 
 int32_t syscall54(uint32_t a, uint32_t b) {
     printf("syscall54(%d, %d)\n", a, b);
@@ -96,6 +142,7 @@ int32_t syscall54(uint32_t a, uint32_t b) {
 
 
 int32_t syscall146(uint32_t what, uint32_t argp) {
+    //printf("syscall146(%d, %p)\n", what, (void*)argp);
     int fd = *(int32_t*)&_memory_.memory[argp];
     uint32_t iovecptr = *(uint32_t*)&_memory_.memory[argp + 4];
     uint32_t iovcnt = *(uint32_t*)&_memory_.memory[argp + 8];
@@ -103,12 +150,25 @@ int32_t syscall146(uint32_t what, uint32_t argp) {
         uint32_t iov_base;
         uint32_t iov_len;
     } *iovec;
+    //printf("    fd: %p, cnt: %d\n", (void*)fd, iovcnt);
     int32_t total_written = 0;
     for(uint32_t i=0; i<iovcnt; i++, iovecptr+=8) {
         iovec = (void*)&_memory_.memory[iovecptr];
-        total_written += fwrite(&_memory_.memory[iovec->iov_base], 1, iovec->iov_len, stdout);
+        //printf("    iovec %p, %d: ", (void*)iovec->iov_base, iovec->iov_len);
+        for(uint32_t j=0; j<iovec->iov_len; j++) {
+            printf("%c", _memory_.memory[iovec->iov_base + j]);
+            total_written += 1;
+        }
+        //printf("\n");
     }
+
+    //FATAL("---")
+    //return -1;
     return total_written;
+}
+
+uint32_t _env__getTotalMemory_() {
+    return TOTAL_MEMORY;
 }
 
 //uint32_t _env__memcpy_big_(uint32_t dst, uint32_t src, uint32_t num) {
@@ -127,13 +187,16 @@ int32_t syscall146(uint32_t what, uint32_t argp) {
 DECLARE_DUMMY1(void, nullFunc, int32_t)
 DECLARE_DUMMY2(int32_t, syscall, int32_t, int32_t)
 DECLARE_DUMMY0(int32_t, enlargeMemory)
-DECLARE_DUMMY0(int32_t, getTotalMemory)
+//DECLARE_DUMMY0(int32_t, getTotalMemory)
 DECLARE_DUMMY0(int32_t, abortOnCannotGrowMemory)
 DECLARE_DUMMY1(void, abortStackOverflow, int32_t)
 DECLARE_DUMMY1(void, unlock, int32_t)
 DECLARE_DUMMY1(void, lock, int32_t)
 DECLARE_DUMMY1(void, setErrNo, int32_t)
 DECLARE_DUMMY0(void, abort)
+DECLARE_DUMMY1(void, segfault, int32_t);
+DECLARE_DUMMY1(void, alignfault, int32_t);
+DECLARE_DUMMY1(void, ftfault, int32_t);
 DECLARE_DUMMY3(int32_t, memcpy_big, int32_t, int32_t, int32_t)
 DECLARE_DUMMY1(int32_t, invoke_i, int32_t)
 DECLARE_DUMMY2(int32_t, invoke_ii, int32_t, int32_t)
@@ -152,6 +215,9 @@ void *exports(char *module, char *name) {
     // This is rather crude... a hashtable would be nicer.
     // But then, performance is unlikely to matter, here.
     if(strcmp("env", module) == 0) {
+        EXPORT("_memdump", _env__memdump_);
+        EXPORT("_memdiff", _env__memdiff_);
+
         EXPORT("memory", _memory_.memory);
         EXPORT("table",  _memory_.table);
 
@@ -175,6 +241,9 @@ void *exports(char *module, char *name) {
         EXPORT("___setErrNo", _env__setErrNo_);
         EXPORT("_abort", _env__abort_);
         EXPORT("abort", _env__abort_);
+        EXPORT("segfault", _env__segfault_);
+        EXPORT("alignfault", _env__alignfault_);
+        EXPORT("ftfault", _env__ftfault_);
 
         EXPORT("nullFunc_i", _env__nullFunc_);
         EXPORT("nullFunc_ii", _env__nullFunc_);
@@ -211,6 +280,8 @@ void init_memory() {
     _memory_.dynamic_top = STACK_SIZE + 1;
 
     _memory_.table = calloc(TOTAL_TABLE, sizeof(uint32_t));
+
+    memory_dump.memory = calloc(TOTAL_MEMORY, sizeof(char));
 }
 
 
@@ -247,6 +318,12 @@ int main(int argc, char **argv) {
     Options opts;
     Module *m = load_module(mod_path, opts, &exports);
 
+    // this feels terribly hacky...
+    // todo: there must be a way to correctly initialize the start of the heap without calling into _sbrk
+    char *str = malloc(17);
+    sprintf(str, "%u", m->data_size);
+    res = invoke(m, "_sbrk", 1, &str);
+
     if (!repl) {
         // Invoke one function and exit
         res = invoke(m, argv[optind], argc-optind-1, argv+optind+1);
@@ -281,6 +358,5 @@ int main(int argc, char **argv) {
             free(tokens);
         }
     }
-    //print_memory(&_memory_, 0, 5000);
     exit(0);
 }

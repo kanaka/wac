@@ -1855,6 +1855,8 @@ Module *load_module(char *path, Options options, HostExportCallback host_export)
                      size, offset);
                 memcpy(m->memory.bytes+offset, bytes+pos, size);
                 pos += size;
+                if(offset + size > m->data_size)
+                    m->data_size = offset + size;
             }
 
             break;

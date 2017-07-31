@@ -135,6 +135,7 @@ typedef struct Module {
     Table       table;
 
     Memory      memory;
+    uint32_t    data_size;      // size of the data segment
 
     uint32_t    global_count;   // number of globals
     StackValue *globals;        // globals
