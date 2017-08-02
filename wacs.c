@@ -186,6 +186,10 @@ uint32_t _env__getTotalMemory_() {
 #define DECLARE_DUMMY4(ret_t, name, a1_t, a2_t, a3_t, a4_t) ret_t _env__##name##_(a1_t a1, a2_t a2, a3_t a3, a4_t a4) { FATAL("Calling undefined function: %s(%d, %d, %d, %d)\n", #name, a1, a2, a3, a4); }
 #define DECLARE_DUMMY5(ret_t, name, a1_t, a2_t, a3_t, a4_t, a5_t) ret_t _env__##name##_(a1_t a1, a2_t a2, a3_t a3, a4_t a4, a5_t a5) { FATAL("Calling undefined function: %s(%d, %d, %d, %d, %d)\n", #name, a1, a2, a3, a4, a5); }
 
+
+
+DECLARE_DUMMY0(void, lazy_dummy)
+
 DECLARE_DUMMY1(void, nullFunc, int32_t)
 DECLARE_DUMMY2(int32_t, syscall, int32_t, int32_t)
 DECLARE_DUMMY0(int32_t, enlargeMemory)
@@ -242,6 +246,7 @@ void *exports(char *module, char *name) {
         EXPORT("abortStackOverflow", _env__abortStackOverflow_);
         EXPORT("_emscripten_memcpy_big", _env__memcpy_big_);
 
+        EXPORT("___syscall4", _env__syscall_);
         EXPORT("___syscall6", _env__syscall_);
         EXPORT("___syscall54", syscall54);
         EXPORT("___syscall91", _env__syscall_);
@@ -261,6 +266,12 @@ void *exports(char *module, char *name) {
         EXPORT("nullFunc_ii", _env__nullFunc_);
         EXPORT("nullFunc_iii", _env__nullFunc_);
         EXPORT("nullFunc_iiii", _env__nullFunc_);
+        EXPORT("nullFunc_ji", _env__nullFunc_);
+        EXPORT("nullFunc_v", _env__nullFunc_);
+        EXPORT("nullFunc_vi", _env__nullFunc_);
+        EXPORT("nullFunc_vii", _env__nullFunc_);
+        EXPORT("nullFunc_viii", _env__nullFunc_);
+        EXPORT("nullFunc_viiii", _env__nullFunc_);
 
         EXPORT("invoke_i", _env__invoke_i_);
         EXPORT("invoke_ii", _env__invoke_ii_);
@@ -282,9 +293,39 @@ void *exports(char *module, char *name) {
         EXPORT("_pthread_getspecific", _env___pthread_stuff_);
         EXPORT("_pthread_once", _env___pthread_stuff_);
         EXPORT("_pthread_setspecific", _env___pthread_stuff_);
+        EXPORT("_pthread_rwlock_unlock", _env___pthread_stuff_);
+        EXPORT("_pthread_cond_init", _env___pthread_stuff_);
+        EXPORT("_pthread_cond_destroy", _env___pthread_stuff_);
+        EXPORT("_pthread_mutexattr_destroy", _env___pthread_stuff_);
+        EXPORT("_pthread_key_delete", _env___pthread_stuff_);
+        EXPORT("_pthread_condattr_setclock", _env___pthread_stuff_);
+        EXPORT("_pthread_getspecific", _env___pthread_stuff_);
+        EXPORT("_pthread_rwlock_rdlock", _env___pthread_stuff_);
+        EXPORT("_pthread_cond_signal", _env___pthread_stuff_);
+        EXPORT("_pthread_mutex_destroy", _env___pthread_stuff_);
+        EXPORT("_pthread_condattr_init", _env___pthread_stuff_);
+        EXPORT("_pthread_condattr_destroy", _env___pthread_stuff_);
+        EXPORT("_pthread_mutexattr_settype", _env___pthread_stuff_);
+        EXPORT("_pthread_mutexattr_init", _env___pthread_stuff_);
+        EXPORT("_pthread_mutex_init", _env___pthread_stuff_);
 
         // C++ name mangled
         EXPORT("__ZSt18uncaught_exceptionv", _env___ZSt18uncaught_exceptionv_);
+
+        // Needed for Rust?
+        EXPORT("__Unwind_Backtrace", _env__lazy_dummy_);
+        EXPORT("__Unwind_FindEnclosingFunction", _env__lazy_dummy_);
+        EXPORT("__Unwind_GetIPInfo", _env__lazy_dummy_);
+        EXPORT("___gxx_personality_v0", _env__lazy_dummy_);
+        EXPORT("___cxa_find_matching_catch_2", _env__lazy_dummy_);
+        EXPORT("___cxa_find_matching_catch_3", _env__lazy_dummy_);
+        EXPORT("___cxa_free_exception", _env__lazy_dummy_);
+        EXPORT("___cxa_allocate_exception", _env__lazy_dummy_);
+        EXPORT("___cxa_throw", _env__lazy_dummy_);
+        EXPORT("___resumeException", _env__lazy_dummy_);
+        EXPORT("_dladdr", _env__lazy_dummy_);
+        EXPORT("_llvm_trap", _env__lazy_dummy_);
+
 
         // these seem to be unused
         EXPORT("ABORT", _env__zeroval_);
