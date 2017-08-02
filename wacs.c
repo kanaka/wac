@@ -145,7 +145,7 @@ int32_t syscall54(uint32_t a, uint32_t b) {
 
 int32_t syscall146(uint32_t what, uint32_t argp) {
     //printf("syscall146(%d, %p)\n", what, (void*)argp);
-    int fd = *(int32_t*)&host_memory[argp];
+    //int fd = *(int32_t*)&host_memory[argp];
     uint32_t iovecptr = *(uint32_t*)&host_memory[argp + 4];
     uint32_t iovcnt = *(uint32_t*)&host_memory[argp + 8];
     struct {
