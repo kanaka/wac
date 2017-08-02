@@ -211,6 +211,14 @@ DECLARE_DUMMY3(void, invoke_vii, int32_t, int32_t, int32_t)
 DECLARE_DUMMY4(void, invoke_viii, int32_t, int32_t, int32_t, int32_t)
 DECLARE_DUMMY5(void, invoke_viiii, int32_t, int32_t, int32_t, int32_t, int32_t)
 
+DECLARE_DUMMY4(void, assert_fail, int32_t, int32_t, int32_t, int32_t)
+DECLARE_DUMMY5(int32_t, strftime_l, int32_t, int32_t, int32_t, int32_t, int32_t)
+DECLARE_DUMMY0(int32_t, _ZSt18uncaught_exceptionv)
+DECLARE_DUMMY1(int32_t, getenv, int32_t)
+DECLARE_DUMMY2(int32_t, __map_file, int32_t, int32_t)
+
+DECLARE_DUMMY2(int32_t, _pthread_stuff, int32_t, int32_t)
+
 #define EXPORT(field, obj) if(strcmp(name, field) == 0) return &obj
 
 void *exports(char *module, char *name) {
@@ -236,7 +244,9 @@ void *exports(char *module, char *name) {
 
         EXPORT("___syscall6", _env__syscall_);
         EXPORT("___syscall54", syscall54);
+        EXPORT("___syscall91", _env__syscall_);
         EXPORT("___syscall140", _env__syscall_);
+        EXPORT("___syscall145", _env__syscall_);
         EXPORT("___syscall146", syscall146);
         EXPORT("___lock", _env__lock_);
         EXPORT("___unlock", _env__lock_);
@@ -261,6 +271,20 @@ void *exports(char *module, char *name) {
         EXPORT("invoke_vii", _env__invoke_vii_);
         EXPORT("invoke_viii", _env__invoke_viii_);
         EXPORT("invoke_viiii", _env__invoke_viiii_);
+
+        EXPORT("___assert_fail", _env__assert_fail_);
+        EXPORT("_strftime_l", _env__strftime_l_);
+        EXPORT("_getenv", _env__getenv_);
+        EXPORT("___map_file", _env____map_file_);
+
+        EXPORT("_pthread_cond_wait", _env___pthread_stuff_);
+        EXPORT("_pthread_key_create", _env___pthread_stuff_);
+        EXPORT("_pthread_getspecific", _env___pthread_stuff_);
+        EXPORT("_pthread_once", _env___pthread_stuff_);
+        EXPORT("_pthread_setspecific", _env___pthread_stuff_);
+
+        // C++ name mangled
+        EXPORT("__ZSt18uncaught_exceptionv", _env___ZSt18uncaught_exceptionv_);
 
         // these seem to be unused
         EXPORT("ABORT", _env__zeroval_);
