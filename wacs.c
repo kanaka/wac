@@ -31,34 +31,30 @@ void _spectest__print_(uint32_t val) {
 #define TOTAL_MEMORY  0x1000000 // 16MB
 #define TOTAL_TABLE   65536
 
-typedef struct HostMemory {
-    uint8_t *memory;
-    uint32_t stack_top;
-    uint32_t stack_max;
-    uint32_t dynamic_top;
-
-    uint32_t *table;
-} HostMemory;
-
 double    _global__NaN_         = NAN;
 double    _global__Infinity_    = INFINITY;
 uint32_t _env__zeroval_ = 0;
-HostMemory _memory_;
-HostMemory memory_dump;
+uint8_t *host_memory;
+uint8_t *memory_dump;
+uint32_t *host_table;
+
 double _temp_double_ = 0;
+uint32_t _env__stacktop_;
+uint32_t _env__stackmax_;
+uint32_t _env__dynamictop_ptr_;
 
 
-void print_memory(HostMemory* mem, uint32_t start, uint32_t stop) {
+void print_memory(uint8_t* memory, uint32_t start, uint32_t stop) {
     static const uint8_t colsize = 32;
     printf("\n");
     uint32_t m = start;
     while(m < stop) {
         printf("%08x  ", m);
         for(int i=0; i<colsize; i++) {
-            printf("%02x ", mem->memory[m + i]);
+            printf("%02x ", memory[m + i]);
         }
         for(int i=0; i<colsize; i++) {
-            char c = mem->memory[m + i];
+            char c = memory[m + i];
             if(c >= 32 && c < 127)
                 printf("%c", c);
             else
@@ -68,12 +64,6 @@ void print_memory(HostMemory* mem, uint32_t start, uint32_t stop) {
         printf("\n");
     }
     printf("\n");
-
-    printf("Stack Top: %p\n", (void*)_memory_.stack_top);
-    printf("Stack Max: %p\n", (void*)_memory_.stack_max);
-    printf("Dynamic Top: %p\n", (void*)_memory_.dynamic_top);
-    printf("_env__zeroval_: %d\n", _env__zeroval_);
-    printf("_temp_double_: %f\n", _temp_double_);
 }
 
 #define ANSI_COLOR_DIFF    "\x1b[1m\x1b[31m"
@@ -126,26 +116,38 @@ void memdiff(void *a, void *b, size_t offset, size_t n) {
     }
 }
 
+void print_globals(Module *m) {
+    for(uint32_t i=0; i<m->global_count; i++) {
+        printf("global %d: ", i);
+        switch(m->globals[i].value_type) {
+        case I32: printf("%d\n", m->globals[i].value.int32); break;
+        case I64: printf("%lld\n", m->globals[i].value.int64); break;
+        case F32: printf("%f\n", m->globals[i].value.f32); break;
+        case F64: printf("%f\n", m->globals[i].value.f64); break;
+        }
+    }
+}
+
 void _env__memdump_() {
-    memcpy(memory_dump.memory, _memory_.memory, TOTAL_MEMORY);
+    memcpy(memory_dump, host_memory, TOTAL_MEMORY);
 }
 
 void _env__memdiff_(uint32_t offset, uint32_t n) {
-    memdiff(_memory_.memory, memory_dump.memory, offset, n);
+    memdiff(host_memory, memory_dump, offset, n);
 }
 
 
 int32_t syscall54(uint32_t a, uint32_t b) {
-    printf("syscall54(%d, %d)\n", a, b);
+    info("syscall54(%d, %d)\n", a, b);
     return 0;
 }
 
 
 int32_t syscall146(uint32_t what, uint32_t argp) {
     //printf("syscall146(%d, %p)\n", what, (void*)argp);
-    int fd = *(int32_t*)&_memory_.memory[argp];
-    uint32_t iovecptr = *(uint32_t*)&_memory_.memory[argp + 4];
-    uint32_t iovcnt = *(uint32_t*)&_memory_.memory[argp + 8];
+    int fd = *(int32_t*)&host_memory[argp];
+    uint32_t iovecptr = *(uint32_t*)&host_memory[argp + 4];
+    uint32_t iovcnt = *(uint32_t*)&host_memory[argp + 8];
     struct {
         uint32_t iov_base;
         uint32_t iov_len;
@@ -153,10 +155,10 @@ int32_t syscall146(uint32_t what, uint32_t argp) {
     //printf("    fd: %p, cnt: %d\n", (void*)fd, iovcnt);
     int32_t total_written = 0;
     for(uint32_t i=0; i<iovcnt; i++, iovecptr+=8) {
-        iovec = (void*)&_memory_.memory[iovecptr];
+        iovec = (void*)&host_memory[iovecptr];
         //printf("    iovec %p, %d: ", (void*)iovec->iov_base, iovec->iov_len);
         for(uint32_t j=0; j<iovec->iov_len; j++) {
-            printf("%c", _memory_.memory[iovec->iov_base + j]);
+            printf("%c", host_memory[iovec->iov_base + j]);
             total_written += 1;
         }
         //printf("\n");
@@ -218,12 +220,12 @@ void *exports(char *module, char *name) {
         EXPORT("_memdump", _env__memdump_);
         EXPORT("_memdiff", _env__memdiff_);
 
-        EXPORT("memory", _memory_.memory);
-        EXPORT("table",  _memory_.table);
+        EXPORT("memory", host_memory);
+        EXPORT("table",  host_table);
 
-        EXPORT("STACKTOP", _memory_.stack_top);
-        EXPORT("STACK_MAX", _memory_.stack_max);
-        EXPORT("DYNAMICTOP_PTR", _memory_.dynamic_top);
+        EXPORT("STACKTOP", _env__stacktop_);
+        EXPORT("STACK_MAX", _env__stackmax_);
+        EXPORT("DYNAMICTOP_PTR", _env__dynamictop_ptr_);
         EXPORT("tempDoublePtr", _temp_double_);
 
         EXPORT("enlargeMemory", _env__enlargeMemory_);
@@ -274,19 +276,18 @@ void *exports(char *module, char *name) {
 
 
 void init_memory() {
-    _memory_.memory = calloc(TOTAL_MEMORY, sizeof(char));
-    _memory_.stack_top = 0;
-    _memory_.stack_max = STACK_SIZE;
-    _memory_.dynamic_top = STACK_SIZE + 1;
+    host_memory = calloc(TOTAL_MEMORY, sizeof(char));
+    host_table = calloc(TOTAL_TABLE, sizeof(uint32_t));
+    memory_dump = calloc(TOTAL_MEMORY, sizeof(char));
 
-    _memory_.table = calloc(TOTAL_TABLE, sizeof(uint32_t));
-
-    memory_dump.memory = calloc(TOTAL_MEMORY, sizeof(char));
+    _env__stacktop_ = 0;
+    _env__stackmax_ = STACK_SIZE;
+    _env__dynamictop_ptr_ = 0;  // is the first memory address a good position for the heap pointer?
 }
 
 
 int main(int argc, char **argv) {
-    char   *mod_path, *entry, *line;
+    char   *mod_path, *line;
     int     repl = 0, debug = 0, res = 0;
 
     // Parse arguments
@@ -318,23 +319,20 @@ int main(int argc, char **argv) {
     Options opts;
     Module *m = load_module(mod_path, opts, &exports);
 
-    // this feels terribly hacky...
-    // todo: there must be a way to correctly initialize the start of the heap without calling into _sbrk
-    char *str = malloc(17);
-    sprintf(str, "%u", m->data_size);
-    res = invoke(m, "_sbrk", 1, &str);
+    // set heap memory right after data section initialized by module (aligned to 16 bytes)
+    *(uint32_t*)&host_memory[_env__dynamictop_ptr_] = (m->data_size + 15) & -16;
 
     if (!repl) {
         // Invoke one function and exit
         res = invoke(m, argv[optind], argc-optind-1, argv+optind+1);
         if (res) {
-	    if (m->sp >= 0) {
-		printf("%s\n", value_repr(&m->stack[m->sp]));
-	    }
+            if (m->sp >= 0) {
+                printf("%s\n", value_repr(&m->stack[m->sp]));
+            }
         } else {
-	    error("Exception: %s\n", exception);
-	    exit(1);
-	}
+            error("Exception: %s\n", exception);
+            exit(1);
+        }
     } else {
         // Simple REPL
         if (optind < argc) { usage(argv[0]); }
@@ -349,11 +347,11 @@ int main(int argc, char **argv) {
             m->csp = -1;
             res = invoke(m, tokens[0], token_cnt-1, tokens+1);
 	    if (res) {
-		if (m->sp >= 0) {
-		    printf("%s\n", value_repr(&m->stack[m->sp]));
-		}
-	    } else {
-		error("Exception: %s\n", exception);
+            if (m->sp >= 0) {
+                printf("%s\n", value_repr(&m->stack[m->sp]));
+            }
+        } else {
+            error("Exception: %s\n", exception);
 	    }
             free(tokens);
         }
