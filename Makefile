@@ -14,6 +14,7 @@ EXTRA_WACS_LIBS ?=
 
 CC = gcc -std=gnu99 -m32
 EMCC = emcc $(CFLAGS) -s WASM=1 -s SIDE_MODULE=1 -s LEGALIZE_JS_FFI=0
+EMCCSB = emcc $(CFLAGS) -s WASM=1 -s NO_FILESYSTEM=1 -s LEGALIZE_JS_FFI=0
 
 WAC_LIBS = m dl $(RL_LIBRARY) $(EXTRA_WAC_LIBS)
 WACE_LIBS = m dl $(RL_LIBRARY) SDL2 SDL2_image GL glut $(EXTRA_WACE_LIBS)
@@ -58,6 +59,8 @@ clean:
 	rm -f *.o *.a wac wace wace-sdl.c wacs \
 	    examples_c/*.js examples_c/*.html \
 	    examples_c/*.wasm examples_c/*.wast \
+	    examples_csb/*.js examples_csb/*.html \
+	    examples_csb/*.wasm examples_csb/*.wast \
 	    examples_wast/*.wasm
 
 ##########################################################
@@ -71,10 +74,21 @@ examples_wast/%.wasm: examples_wast/%.wast
 examples_c/%.wasm: examples_c/%.c
 	$(EMCC) -I examples_c/include -s USE_SDL=2 $< -o $@
 
+
+# Sandboxed C example build rules
+examples_csb/%.js: examples_csb/%.c
+	$(EMCCSB) -I examples_csb/include $< -o $@
+
+examples_csb/%.wasm: examples_csb/%.js
+	$(NOOP)
+
 .SECONDARY:
 examples_c/%.wast: examples_c/%.wasm
 	wasm-dis $< -o $@
 
 examples_c/%: examples_c/%.c
 	$(CC) $< -o $@ -lSDL2 -lSDL2_image -lGL -lglut
+
+examples_c/%: examples_csb/%.c
+	$(CC) $< -o $@
 
