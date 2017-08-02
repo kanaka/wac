@@ -204,16 +204,13 @@ DECLARE_DUMMY1(void, segfault, int32_t);
 DECLARE_DUMMY1(void, alignfault, int32_t);
 DECLARE_DUMMY1(void, ftfault, int32_t);
 DECLARE_DUMMY3(int32_t, memcpy_big, int32_t, int32_t, int32_t)
-DECLARE_DUMMY1(int32_t, invoke_i, int32_t)
-DECLARE_DUMMY2(int32_t, invoke_ii, int32_t, int32_t)
-DECLARE_DUMMY3(int32_t, invoke_iii, int32_t, int32_t, int32_t)
-DECLARE_DUMMY4(int32_t, invoke_iiii, int32_t, int32_t, int32_t, int32_t)
 
-DECLARE_DUMMY1(void, invoke_v, int32_t)
-DECLARE_DUMMY2(void, invoke_vi, int32_t, int32_t)
-DECLARE_DUMMY3(void, invoke_vii, int32_t, int32_t, int32_t)
-DECLARE_DUMMY4(void, invoke_viii, int32_t, int32_t, int32_t, int32_t)
-DECLARE_DUMMY5(void, invoke_viiii, int32_t, int32_t, int32_t, int32_t, int32_t)
+
+DECLARE_DUMMY0(void, invoke_v_any)
+DECLARE_DUMMY0(int32_t, invoke_i_any)
+DECLARE_DUMMY0(int64_t, invoke_j_any)
+DECLARE_DUMMY0(double, invoke_f_any)
+DECLARE_DUMMY0(double, invoke_d_any)
 
 DECLARE_DUMMY4(void, assert_fail, int32_t, int32_t, int32_t, int32_t)
 DECLARE_DUMMY5(int32_t, strftime_l, int32_t, int32_t, int32_t, int32_t, int32_t)
@@ -262,26 +259,12 @@ void *exports(char *module, char *name) {
         EXPORT("alignfault", _env__alignfault_);
         EXPORT("ftfault", _env__ftfault_);
 
-        EXPORT("nullFunc_i", _env__nullFunc_);
-        EXPORT("nullFunc_ii", _env__nullFunc_);
-        EXPORT("nullFunc_iii", _env__nullFunc_);
-        EXPORT("nullFunc_iiii", _env__nullFunc_);
-        EXPORT("nullFunc_ji", _env__nullFunc_);
-        EXPORT("nullFunc_v", _env__nullFunc_);
-        EXPORT("nullFunc_vi", _env__nullFunc_);
-        EXPORT("nullFunc_vii", _env__nullFunc_);
-        EXPORT("nullFunc_viii", _env__nullFunc_);
-        EXPORT("nullFunc_viiii", _env__nullFunc_);
-
-        EXPORT("invoke_i", _env__invoke_i_);
-        EXPORT("invoke_ii", _env__invoke_ii_);
-        EXPORT("invoke_iii", _env__invoke_iii_);
-        EXPORT("invoke_iiii", _env__invoke_iiii_);
-        EXPORT("invoke_v", _env__invoke_v_);
-        EXPORT("invoke_vi", _env__invoke_vi_);
-        EXPORT("invoke_vii", _env__invoke_vii_);
-        EXPORT("invoke_viii", _env__invoke_viii_);
-        EXPORT("invoke_viiii", _env__invoke_viiii_);
+        if(strncmp(name, "nullFunc", 8) == 0) return &_env__nullFunc_;
+        if(strncmp(name, "invoke_v", 8) == 0) return &_env__invoke_v_any_;
+        if(strncmp(name, "invoke_i", 8) == 0) return &_env__invoke_i_any_;
+        if(strncmp(name, "invoke_j", 8) == 0) return &_env__invoke_j_any_;
+        if(strncmp(name, "invoke_f", 8) == 0) return &_env__invoke_f_any_;
+        if(strncmp(name, "invoke_d", 8) == 0) return &_env__invoke_d_any_;
 
         EXPORT("___assert_fail", _env__assert_fail_);
         EXPORT("_strftime_l", _env__strftime_l_);
@@ -317,11 +300,15 @@ void *exports(char *module, char *name) {
         EXPORT("__Unwind_FindEnclosingFunction", _env__lazy_dummy_);
         EXPORT("__Unwind_GetIPInfo", _env__lazy_dummy_);
         EXPORT("___gxx_personality_v0", _env__lazy_dummy_);
+        EXPORT("___cxa_begin_catch", _env__lazy_dummy_);
+        EXPORT("___cxa_end_catch", _env__lazy_dummy_);
         EXPORT("___cxa_find_matching_catch_2", _env__lazy_dummy_);
         EXPORT("___cxa_find_matching_catch_3", _env__lazy_dummy_);
+        EXPORT("___cxa_find_matching_catch_4", _env__lazy_dummy_);
         EXPORT("___cxa_free_exception", _env__lazy_dummy_);
         EXPORT("___cxa_allocate_exception", _env__lazy_dummy_);
         EXPORT("___cxa_throw", _env__lazy_dummy_);
+        EXPORT("___cxa_rethrow", _env__lazy_dummy_);
         EXPORT("___resumeException", _env__lazy_dummy_);
         EXPORT("_dladdr", _env__lazy_dummy_);
         EXPORT("_llvm_trap", _env__lazy_dummy_);
@@ -344,10 +331,6 @@ void init_memory() {
     host_memory = calloc(TOTAL_MEMORY, sizeof(char));
     host_table = calloc(TOTAL_TABLE, sizeof(uint32_t));
     memory_dump = calloc(TOTAL_MEMORY, sizeof(char));
-
-    _env__stacktop_ = 0;
-    _env__stackmax_ = STACK_SIZE;
-    _env__dynamictop_ptr_ = 0;  // is the first memory address a good position for the heap pointer?
 }
 
 
@@ -380,12 +363,33 @@ int main(int argc, char **argv) {
 
     init_memory();
 
+    // set sentinel values
+    _env__dynamictop_ptr_ = -123;
+    _env__stacktop_ = -345;
+    _env__stackmax_ = -456;
+
     // Load the module
     Options opts;
     Module *m = load_module(mod_path, opts, &exports);
 
+    uint32_t mem_start = 65536;//+ (m->data_size + 15) & -16;
+    _env__dynamictop_ptr_ = mem_start;
+    _env__stacktop_ = mem_start + 16;
+    _env__stackmax_ = _env__stacktop_ + 65536;
+
+    // This is so ugly. And unsafe. I wish it was possible to tie client globals to host variables.
+    // TODO: make wish come true.
+    for(uint32_t i=0; i<m->global_count; i++) {
+        if(m->globals[i].value.int32 == -123) m->globals[i].value.uint32 = _env__dynamictop_ptr_;
+        if(m->globals[i].value.int32 == -345) m->globals[i].value.uint32 = _env__stacktop_;
+        if(m->globals[i].value.int32 == -456) m->globals[i].value.uint32 = _env__stackmax_;
+    }
+
+    info("stack top: %x\n", _env__stacktop_);
+    info("stack max: %x\n", _env__stackmax_);
+
     // set heap memory right after data section initialized by module (aligned to 16 bytes)
-    *(uint32_t*)&host_memory[_env__dynamictop_ptr_] = (m->data_size + 15) & -16;
+    *(uint32_t*)&host_memory[_env__dynamictop_ptr_] = _env__stackmax_ + 16;
 
     if (!repl) {
         // Invoke one function and exit
