@@ -313,7 +313,6 @@ void *exports(char *module, char *name) {
         EXPORT("_dladdr", _env__lazy_dummy_);
         EXPORT("_llvm_trap", _env__lazy_dummy_);
 
-
         // these seem to be unused
         EXPORT("ABORT", _env__zeroval_);
         EXPORT("memoryBase", _env__zeroval_);
@@ -372,7 +371,7 @@ int main(int argc, char **argv) {
     Options opts;
     Module *m = load_module(mod_path, opts, &exports);
 
-    uint32_t mem_start = 65536;//+ (m->data_size + 15) & -16;
+    uint32_t mem_start = (m->data_size + 15) & -16;
     _env__dynamictop_ptr_ = mem_start;
     _env__stacktop_ = mem_start + 16;
     _env__stackmax_ = _env__stacktop_ + 65536;
