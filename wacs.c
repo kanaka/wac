@@ -368,7 +368,9 @@ int main(int argc, char **argv) {
     _env__stackmax_ = -456;
 
     // Load the module
-    Options opts;
+    Options opts = { .disable_memory_bounds = false,
+                     .mangle_table_index    = false,
+                     .dlsym_trim_underscore = false };
     Module *m = load_module(mod_path, opts, &exports);
 
     uint32_t mem_start = (m->data_size + 15) & -16;
