@@ -44,99 +44,6 @@ uint32_t _env__stackmax_;
 uint32_t _env__dynamictop_ptr_;
 
 
-void print_memory(uint8_t* memory, uint32_t start, uint32_t stop) {
-    static const uint8_t colsize = 32;
-    printf("\n");
-    uint32_t m = start;
-    while(m < stop) {
-        printf("%08x  ", m);
-        for(int i=0; i<colsize; i++) {
-            printf("%02x ", memory[m + i]);
-        }
-        for(int i=0; i<colsize; i++) {
-            char c = memory[m + i];
-            if(c >= 32 && c < 127)
-                printf("%c", c);
-            else
-                printf(".");
-        }
-        m += colsize;
-        printf("\n");
-    }
-    printf("\n");
-}
-
-#define ANSI_COLOR_DIFF    "\x1b[1m\x1b[31m"
-#define ANSI_COLOR_RESET   "\x1b[0m"
-
-void memdiff(void *a, void *b, size_t offset, size_t n) {
-    static const uint8_t colsize = 16;
-    size_t o = offset;
-    while(o < n) {
-        printf("%08x  ", o);
-        for(int i=0; i<colsize; i++) {
-            uint8_t m = *(uint8_t*)(a + i);
-            if(m == *(uint8_t*)(b + i))
-                printf("%02x ", m);
-            else
-                printf(ANSI_COLOR_DIFF "%02x " ANSI_COLOR_RESET, m);
-        }
-        for(int i=0; i<colsize; i++) {
-            char c = *(char*)(a + i);
-            if(c != *(char*)(b + i))
-                printf(ANSI_COLOR_DIFF);
-            if(c >= 32 && c < 127)
-                printf("%c", c);
-            else
-                printf(".");
-            printf(ANSI_COLOR_RESET);
-        }
-        printf("  ");
-        for(int i=0; i<colsize; i++) {
-            uint8_t m = *(uint8_t*)(b + i);
-            if(m == *(uint8_t*)(a + i))
-                printf("%02x ", m);
-            else
-                printf(ANSI_COLOR_DIFF "%02x " ANSI_COLOR_RESET, m);
-        }
-        for(int i=0; i<colsize; i++) {
-            char c = *(char*)(b + i);
-            if(c != *(char*)(a + i))
-                printf(ANSI_COLOR_DIFF);
-            if(c >= 32 && c < 127)
-                printf("%c", c);
-            else
-                printf(".");
-            printf(ANSI_COLOR_RESET);
-        }
-        o += colsize;
-        a += colsize;
-        b += colsize;
-        printf("\n");
-    }
-}
-
-void print_globals(Module *m) {
-    for(uint32_t i=0; i<m->global_count; i++) {
-        printf("global %d: ", i);
-        switch(m->globals[i].value_type) {
-        case I32: printf("%d\n", m->globals[i].value.int32); break;
-        case I64: printf("%lld\n", m->globals[i].value.int64); break;
-        case F32: printf("%f\n", m->globals[i].value.f32); break;
-        case F64: printf("%f\n", m->globals[i].value.f64); break;
-        }
-    }
-}
-
-void _env__memdump_() {
-    memcpy(memory_dump, host_memory, TOTAL_MEMORY);
-}
-
-void _env__memdiff_(uint32_t offset, uint32_t n) {
-    memdiff(host_memory, memory_dump, offset, n);
-}
-
-
 int32_t syscall54(uint32_t a, uint32_t b) {
     info("syscall54(%d, %d)\n", a, b);
     return 0;
@@ -144,28 +51,20 @@ int32_t syscall54(uint32_t a, uint32_t b) {
 
 
 int32_t syscall146(uint32_t what, uint32_t argp) {
-    //printf("syscall146(%d, %p)\n", what, (void*)argp);
-    //int fd = *(int32_t*)&host_memory[argp];
     uint32_t iovecptr = *(uint32_t*)&host_memory[argp + 4];
     uint32_t iovcnt = *(uint32_t*)&host_memory[argp + 8];
     struct {
         uint32_t iov_base;
         uint32_t iov_len;
     } *iovec;
-    //printf("    fd: %p, cnt: %d\n", (void*)fd, iovcnt);
     int32_t total_written = 0;
     for(uint32_t i=0; i<iovcnt; i++, iovecptr+=8) {
         iovec = (void*)&host_memory[iovecptr];
-        //printf("    iovec %p, %d: ", (void*)iovec->iov_base, iovec->iov_len);
         for(uint32_t j=0; j<iovec->iov_len; j++) {
             printf("%c", host_memory[iovec->iov_base + j]);
             total_written += 1;
         }
-        //printf("\n");
     }
-
-    //FATAL("---")
-    //return -1;
     return total_written;
 }
 
@@ -173,12 +72,8 @@ uint32_t _env__getTotalMemory_() {
     return TOTAL_MEMORY;
 }
 
-//uint32_t _env__memcpy_big_(uint32_t dst, uint32_t src, uint32_t num) {
-//    return (uint32_t)memcpy(&_memory_.memory[dst], &_memory_.memory[src], num);
-//}
 
-//void _env__nullFunc_(int32_t a) { printf("calling nullFunc(%d)\n", a);}
-
+// These macros are used to declare unimplemented host exports typically required by emscripten builds
 #define DECLARE_DUMMY0(ret_t, name) ret_t _env__##name##_() { FATAL("Calling undefined function: %s\n", #name); }
 #define DECLARE_DUMMY1(ret_t, name, a1_t) ret_t _env__##name##_(a1_t a1) { FATAL("Calling undefined function: %s(%d)\n", #name, a1); }
 #define DECLARE_DUMMY2(ret_t, name, a1_t, a2_t) ret_t _env__##name##_(a1_t a1, a2_t a2) { FATAL("Calling undefined function: %s(%d, %d)\n", #name, a1, a2); }
@@ -187,24 +82,21 @@ uint32_t _env__getTotalMemory_() {
 #define DECLARE_DUMMY5(ret_t, name, a1_t, a2_t, a3_t, a4_t, a5_t) ret_t _env__##name##_(a1_t a1, a2_t a2, a3_t a3, a4_t a4, a5_t a5) { FATAL("Calling undefined function: %s(%d, %d, %d, %d, %d)\n", #name, a1, a2, a3, a4, a5); }
 
 
-
 DECLARE_DUMMY0(void, lazy_dummy)
 
 DECLARE_DUMMY1(void, nullFunc, int32_t)
 DECLARE_DUMMY2(int32_t, syscall, int32_t, int32_t)
 DECLARE_DUMMY0(int32_t, enlargeMemory)
-//DECLARE_DUMMY0(int32_t, getTotalMemory)
 DECLARE_DUMMY0(int32_t, abortOnCannotGrowMemory)
 DECLARE_DUMMY1(void, abortStackOverflow, int32_t)
 DECLARE_DUMMY1(void, unlock, int32_t)
 DECLARE_DUMMY1(void, lock, int32_t)
 DECLARE_DUMMY1(void, setErrNo, int32_t)
 DECLARE_DUMMY0(void, abort)
-DECLARE_DUMMY1(void, segfault, int32_t);
-DECLARE_DUMMY1(void, alignfault, int32_t);
-DECLARE_DUMMY1(void, ftfault, int32_t);
+DECLARE_DUMMY1(void, segfault, int32_t)
+DECLARE_DUMMY1(void, alignfault, int32_t)
+DECLARE_DUMMY1(void, ftfault, int32_t)
 DECLARE_DUMMY3(int32_t, memcpy_big, int32_t, int32_t, int32_t)
-
 
 DECLARE_DUMMY0(void, invoke_v_any)
 DECLARE_DUMMY0(int32_t, invoke_i_any)
@@ -220,15 +112,13 @@ DECLARE_DUMMY2(int32_t, __map_file, int32_t, int32_t)
 
 DECLARE_DUMMY2(int32_t, _pthread_stuff, int32_t, int32_t)
 
+
 #define EXPORT(field, obj) if(strcmp(name, field) == 0) return &obj
 
 void *exports(char *module, char *name) {
     // This is rather crude... a hashtable would be nicer.
     // But then, performance is unlikely to matter, here.
     if(strcmp("env", module) == 0) {
-        EXPORT("_memdump", _env__memdump_);
-        EXPORT("_memdiff", _env__memdiff_);
-
         EXPORT("memory", host_memory);
         EXPORT("table",  host_table);
 
