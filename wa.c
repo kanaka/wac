@@ -1729,6 +1729,8 @@ Module *load_module(char *path, Options options) {
             // Allocate the table
             //for (uint32_t c=0; c<table_count; c++) {
             parse_table_type(m, &pos);
+            // If it's not imported then don't mangle it
+            m->options.mangle_table_index = false;
             m->table.entries = acalloc(m->table.size,
                                        sizeof(uint32_t),
                                        "Module->table.entries");

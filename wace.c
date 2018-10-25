@@ -147,7 +147,9 @@ int main(int argc, char **argv) {
     thunk_in_trap_init(m);
 
     // emscripten initialization
-    res = invoke(m, "__post_instantiate", 0, 0);
+    if (get_export_fidx(m, "__post_instantiate") != -1) {
+        res = invoke(m, "__post_instantiate", 0, 0);
+    }
 
     // setup argc/argv
     m->stack[++m->sp].value_type = I32;
