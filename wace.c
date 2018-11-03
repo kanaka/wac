@@ -9,6 +9,7 @@
 #include "util.h"
 #include "platform.h"
 #include "wa.h"
+#include "thunk.h"
 
 #if PLATFORM==1
   #include "wace_emscripten.h"
@@ -62,6 +63,8 @@ int main(int argc, char **argv) {
                      .dlsym_trim_underscore = true };
     Module *m = load_module(bytes, byte_count, opts);
     m->path = mod_path;
+
+    init_thunk_in(m);
 
     // emscripten initialization
     fidx = get_export_fidx(m, "__post_instantiate");

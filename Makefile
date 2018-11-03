@@ -21,7 +21,7 @@ EXTRA_WACE_LIBS ?=
 CC = gcc $(CFLAGS) -std=gnu99 -m32 -g
 EMCC = emcc $(CFLAGS) -s WASM=1 -s SIDE_MODULE=1 -s LEGALIZE_JS_FFI=0
 
-WA_DEPS = util.o thunks.o
+WA_DEPS = util.o thunk.o
 
 ifeq (libc,$(PLATFORM))
   CFLAGS += -DPLATFORM=1
@@ -51,9 +51,6 @@ WACE_LIBS += $(EXTRA_WACE_LIBS)
 .PHONY:
 all: wac wace
 
-thunks.c:
-	python ./gen_thunks.py
-
 %.a: %.o
 	ar rcs $@ $^
 
@@ -63,8 +60,8 @@ thunks.c:
 # Additional dependencies
 util.o: util.h
 wa.o: wa.h util.h platform.h
-thunks.o: wa.h thunks.h
-wa.a: util.o thunks.o platform_$(PLATFORM).o
+thunk.o: wa.h thunk.h
+wa.a: util.o thunk.o platform_$(PLATFORM).o
 wac: wa.a wac.o
 wace: wa.a wace.o
 

@@ -159,6 +159,7 @@ extern char exception[];
 char *value_repr(StackValue *v);
 uint32_t get_export_fidx(Module *m, char *name);
 void (*setup_thunk_in(uint32_t fidx))();
+void setup_call(Module *m, uint32_t fidx);
 bool interpret(Module *m);
 Module *load_module(uint8_t *bytes, uint32_t byte_count, Options options);
 bool invoke(Module *m, uint32_t fidx);

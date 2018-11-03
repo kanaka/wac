@@ -7,7 +7,7 @@
 
 #include "util.h"
 #include "platform.h"
-#include "thunks.h"
+#include "thunk.h"
 #include "wa.h"
 
 char OPERATOR_INFO[][20] = {
@@ -498,121 +498,6 @@ Block *pop_block(Module *m) {
 
     return frame->block;
 }
-
-//
-// Outbound Thunks (calling imported functions)
-//
-
-uint64_t get_thunk_mask(Module *m, uint32_t fidx) {
-    Type  *type = m->functions[fidx].type;
-    uint64_t  thunk_mask = 0x80;
-
-    if (type->result_count == 1) {
-        thunk_mask |= 0x80 - type->results[0];
-    }
-    thunk_mask = thunk_mask << 4;
-    for(uint32_t p=0; p<type->param_count; p++) {
-        thunk_mask = ((uint64_t)thunk_mask) << 4;
-        thunk_mask |= 0x80 - type->params[p];
-    }
-
-    return thunk_mask;
-}
-
-void thunk_out(Module *m, uint32_t fidx) {
-    Block    *func = &m->functions[fidx];
-    Type     *type = func->type;
-    uint64_t  thunk_mask = get_thunk_mask(m, fidx);
-    if (TRACE) {
-        warn("  >>> thunk_out 0x%x(%d) %s.%s(",
-             func->fidx, func->fidx,
-             func->import_module, func->import_field);
-        for (int p=type->param_count-1; p >= 0; p--) {
-            warn("%s%s", value_repr(&m->stack[m->sp-p]), p ? " " : "");
-        }
-        warn("), %d results\n", type->result_count);
-        debug("      thunk_mask: 0x%x\n", thunk_mask);
-    }
-
-    switch (thunk_mask) {
-    case 0x800       : thunk_out_0_0      (m, func, type); break;
-    case 0x8001      : thunk_out_0_i      (m, func, type); break;
-    case 0x80011     : thunk_out_0_ii     (m, func, type); break;
-    case 0x8001111   : thunk_out_0_iiii   (m, func, type); break;
-    case 0x810       : thunk_out_i_0      (m, func, type); break;
-    case 0x8101      : thunk_out_i_i      (m, func, type); break;
-    case 0x81011     : thunk_out_i_ii     (m, func, type); break;
-    case 0x810111    : thunk_out_i_iii    (m, func, type); break;
-    case 0x8101111   : thunk_out_i_iiii   (m, func, type); break;
-    case 0x81011111  : thunk_out_i_iiiii  (m, func, type); break;
-    case 0x8003      : thunk_out_0_f      (m, func, type); break;
-    case 0x80033     : thunk_out_0_ff     (m, func, type); break;
-    case 0x800333    : thunk_out_0_fff    (m, func, type); break;
-    case 0x8003333   : thunk_out_0_ffff   (m, func, type); break;
-    case 0x8303      : thunk_out_f_f      (m, func, type); break;
-    case 0x8004      : thunk_out_0_F      (m, func, type); break;
-    case 0x80044     : thunk_out_0_FF     (m, func, type); break;
-    case 0x800444    : thunk_out_0_FFF    (m, func, type); break;
-    case 0x8004444   : thunk_out_0_FFFF   (m, func, type); break;
-    case 0x800444444 : thunk_out_0_FFFFFF (m, func, type); break;
-    case 0x8103      : thunk_out_i_f      (m, func, type); break;
-    case 0x8404      : thunk_out_F_F      (m, func, type); break;
-    default: FATAL("unsupported thunk_out mask 0x%llx\n", thunk_mask);
-    }
-
-    if (TRACE) {
-        warn("  <<< thunk_out 0x%x(%d) %s.%s = %s\n",
-             func->fidx, func->fidx, func->import_module, func->import_field,
-             type->result_count > 0 ? value_repr(&m->stack[m->sp]) : "_");
-    }
-}
-
-
-//
-// Inbound Thunks (external calls into exported functions)
-//
-
-Module * _wa_current_module_;
-
-void setup_call(Module *m, uint32_t fidx);
-
-// Push arguments
-// return function pointer to thunk_in_* function
-void (*setup_thunk_in(uint32_t fidx))() {
-    Module   *m = _wa_current_module_; // TODO: global state, clean up somehow
-    Block    *func = &m->functions[fidx];
-    Type     *type = func->type;
-    uint64_t  thunk_mask = get_thunk_mask(m, fidx);
-
-    // Make space on the stack
-    m->sp += type->param_count;
-
-    if (TRACE) {
-        warn("  {{}} setup_thunk_in '%s', mask: 0x%x, ARGS FOR '>>' ARE BOGUS\n",
-             func->export_name, thunk_mask);
-    }
-
-    // Do normal function call setup. The fp will point to the start of stack
-    // elements that were just added above
-    setup_call(m, fidx);
-
-    // Set the type of the unset stack elements
-    for(uint32_t p=0; p<type->param_count; p++) {
-        m->stack[m->fp+p].value_type = type->params[p];
-    }
-
-    // Return the thunk_in function
-    void (*f)(void) = NULL;
-    switch (thunk_mask) {
-    case 0x800      : f = (void (*)(void)) thunk_in_0_0; break;
-    case 0x8101     : f = (void (*)(void)) thunk_in_i_i; break;
-    case 0x80011    : f = (void (*)(void)) thunk_in_0_ii; break;
-    default: FATAL("unsupported thunk_in mask 0x%llx\n", thunk_mask);
-    }
-
-    return f;
-}
-
 
 // Setup a function
 // Push params and locals on the stack and save a call frame on the call stack
@@ -1950,11 +1835,6 @@ Module *load_module(uint8_t *bytes, uint32_t byte_count, Options options) {
             FATAL("Exception: %s\n", exception);
         }
     }
-
-    // TODO: global state, clean up somehow
-    // This global is used by setup_thunk_in since signal handlers don't have
-    // a way to pass arguments when they are setup.
-    _wa_current_module_ = m;
 
     return m;
 }
