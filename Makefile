@@ -1,30 +1,56 @@
 ##########################################################
 # User configurable build options
 
+# libc or fooboot
+PLATFORM = libc
+
 # WARNING: GPL license implications from using READLINE
 USE_READLINE ?=
 
-CFLAGS ?= -O2
+USE_SDL ?= 1
+
+#CFLAGS ?= -O2 -Wall -Werror -Wextra -MMD -MP
+CFLAGS ?= -O2 -Wall -Werror -MMD -MP
 
 EXTRA_WAC_LIBS ?=
 EXTRA_WACE_LIBS ?=
 
+
 ##########################################################
 
-CC = gcc -std=gnu99 -m32
+CC = gcc $(CFLAGS) -std=gnu99 -m32 -g
 EMCC = emcc $(CFLAGS) -s WASM=1 -s SIDE_MODULE=1 -s LEGALIZE_JS_FFI=0
 
-WAC_LIBS = m dl $(RL_LIBRARY) $(EXTRA_WAC_LIBS)
-WACE_LIBS = m dl $(RL_LIBRARY) SDL2 SDL2_image GL glut $(EXTRA_WACE_LIBS)
+WA_DEPS = util.o thunks.o
 
-ifeq (,$(USE_READLINE))
+ifeq (libc,$(PLATFORM))
+  CFLAGS += -DPLATFORM=1
+  ifeq (,$(strip $(USE_READLINE)))
     RL_LIBRARY ?= edit
-else
+  else
     RL_LIBRARY ?= readline
     CFLAGS += -DUSE_READLINE=1
+  endif
+  WAC_LIBS = m dl $(RL_LIBRARY)
+  WACE_LIBS = m dl $(RL_LIBRARY)
+  ifneq (,$(strip $(USE_SDL)))
+    WACE_LIBS += SDL2 SDL2_image GL glut
+  endif
+else
+ifeq (fooboot,$(PLATFORM))
+  CFLAGS += -DPLATFORM=2
+else
+  $(error unknown PLATFORM: $(PLATFORM))
+endif
 endif
 
+WAC_LIBS += $(EXTRA_WAC_LIBS)
+WACE_LIBS += $(EXTRA_WACE_LIBS)
+
 # Basic build rules
+.PHONY:
+all: wac wace
+
 thunks.c:
 	python ./gen_thunks.py
 
@@ -36,21 +62,36 @@ thunks.c:
 
 # Additional dependencies
 util.o: util.h
-wa.o: wa.h util.h
-thunks.o: thunks.h
-wa.a: util.o thunks.o
+wa.o: wa.h util.h platform.h
+thunks.o: wa.h thunks.h
+wa.a: util.o thunks.o platform_$(PLATFORM).o
+wac: wa.a wac.o
+wace: wa.a wace.o
 
+#
+# Platform
+#
+ifeq (libc,$(PLATFORM)) # libc Platform
+wac:
+	$(CC) -rdynamic -Wl,--no-as-needed -o $@ \
+	    -Wl,--start-group $^ -Wl,--end-group $(foreach l,$(WAC_LIBS),-l$(l))
+wace: wace_emscripten.o
+	$(CC) -rdynamic -Wl,--no-as-needed -o $@ \
+	    -Wl,--start-group $^ -Wl,--end-group $(foreach l,$(WACE_LIBS),-l$(l))
 
-wac: wac.c wa.a
-	$(CC) -rdynamic $^ -o $@ $(foreach l,$(WAC_LIBS),-l$(l))
+else  # fooboot OS platform
 
-wace: wace.c wa.a
-	$(CC) -rdynamic $^ -o $@ $(foreach l,$(WACE_LIBS),-l$(l))
+  FOO_TARGETS = wac wace
+  include fooboot/Makefile
+
+wace: wace_fooboot.o
+endif
 
 
 .PHONY:
-clean:
-	rm -f *.o *.a wac wace wace-sdl.c \
+clean::
+	rm -f *.o *.a *.d wac wace wace-sdl.c \
+	    lib/*.o lib/*.d kernel/*.o kernel/*.d \
 	    examples_c/*.js examples_c/*.html \
 	    examples_c/*.wasm examples_c/*.wast \
 	    examples_wast/*.wasm

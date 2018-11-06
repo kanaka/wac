@@ -7,9 +7,11 @@
 #define WA_MAGIC   0x6d736100
 #define WA_VERSION 0x01
 
+#define PAGE_SIZE       0x10000  // 65536
 #define STACK_SIZE      0x10000  // 65536
 #define BLOCKSTACK_SIZE 0x1000   // 4096
 #define CALLSTACK_SIZE  0x1000   // 4096
+#define BR_TABLE_SIZE   0x100    // 256
 
 #define I32       0x7f  // -0x01
 #define I64       0x7e  // -0x02
@@ -146,6 +148,7 @@ typedef struct Module {
     StackValue  stack[STACK_SIZE]; // main operand stack
     int         csp;               // callstack pointer
     Frame       callstack[CALLSTACK_SIZE]; // callstack
+    uint32_t    br_table[BR_TABLE_SIZE]; // br_table branch indexes
 } Module;
 
 //
@@ -157,7 +160,7 @@ char *value_repr(StackValue *v);
 uint32_t get_export_fidx(Module *m, char *name);
 void (*setup_thunk_in(uint32_t fidx))();
 bool interpret(Module *m);
-Module *load_module(char *path, Options opts);
-bool invoke(Module *m, char *entry, int argc, char **argv);
+Module *load_module(uint8_t *bytes, uint32_t byte_count, Options options);
+bool invoke(Module *m, uint32_t fidx);
 
 #endif // of WAC_H

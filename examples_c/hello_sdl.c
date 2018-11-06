@@ -14,8 +14,6 @@ int main()
 
   SDL_CreateWindowAndRenderer(320, 200, 0, &window, &renderer);
 
-  int result = 0;
-
   /**
    * Set up a blue background
    */

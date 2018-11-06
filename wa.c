@@ -1,14 +1,14 @@
-
 #include <stdlib.h>
 #include <stdint.h>
-#include <ctype.h>
+//#include <ctype.h>
 #include <string.h>
 #include <stdbool.h>
 #include <math.h>
 
 #include "util.h"
-#include "wa.h"
+#include "platform.h"
 #include "thunks.h"
+#include "wa.h"
 
 char OPERATOR_INFO[][20] = {
     // Control flow operators
@@ -247,7 +247,7 @@ uint32_t LOAD_SIZE[] = {
 char  exception[4096];
 
 // Static definition of block_types
-uint32_t block_type_results[4][1] = {I32, I64, F32, F64};
+uint32_t block_type_results[4][1] = {{I32}, {I64}, {F32}, {F64}};
 
 Type block_types[5] = {
     { .form = BLOCK, .result_count = 0, },
@@ -264,7 +264,8 @@ Type *get_block_type(uint8_t value_type) {
     case I64:  return &block_types[2];
     case F32:  return &block_types[3];
     case F64:  return &block_types[4];
-    default: FATAL("invalid block_type value_type: %d\n", value_type);
+    default:   FATAL("invalid block_type value_type: %d\n", value_type);
+               return NULL;
     }
 }
 
@@ -306,7 +307,7 @@ void dump_stacks(Module *m) {
 
     warn("      * callstack: [");
     for (int i=0; i<=m->csp; i++) {
-        Frame *f = &m->callstack[i];
+        Frame *f = &m->callstack[i]; (void)f;
         warn("%s(sp:%d/fp:%d/ra:0x%x)", block_repr(f->block), f->sp, f->fp,
                f->ra);
         if (i != m->csp) { warn(" "); }
@@ -327,10 +328,11 @@ void parse_table_type(Module *m, uint32_t *pos) {
     // Limit maximum to 64K
     if (flags & 0x1) {
         tsize = read_LEB(m->bytes, pos, 32); // Max size
-        m->table.maximum = (uint32_t)fmin(0x10000, tsize);
+        m->table.maximum = 0x10000 < tsize ? 0x10000 : tsize;
     } else {
         m->table.maximum = 0x10000;
     }
+    debug("  table size: %d\n", tsize);
 }
 
 void parse_memory_type(Module *m, uint32_t *pos) {
@@ -463,7 +465,6 @@ void push_block(Module *m, Block *block, int sp) {
 Block *pop_block(Module *m) {
     Frame *frame = &m->callstack[m->csp--];
     Type *t = frame->block->type;
-    int ret_sp;
 
     // TODO: validate return value if there is one
 
@@ -510,7 +511,7 @@ uint64_t get_thunk_mask(Module *m, uint32_t fidx) {
         thunk_mask |= 0x80 - type->results[0];
     }
     thunk_mask = thunk_mask << 4;
-    for(int p=0; p<type->param_count; p++) {
+    for(uint32_t p=0; p<type->param_count; p++) {
         thunk_mask = ((uint64_t)thunk_mask) << 4;
         thunk_mask |= 0x80 - type->params[p];
     }
@@ -544,10 +545,15 @@ void thunk_out(Module *m, uint32_t fidx) {
     case 0x810111    : thunk_out_i_iii    (m, func, type); break;
     case 0x8101111   : thunk_out_i_iiii   (m, func, type); break;
     case 0x81011111  : thunk_out_i_iiiii  (m, func, type); break;
+    case 0x8003      : thunk_out_0_f      (m, func, type); break;
     case 0x80033     : thunk_out_0_ff     (m, func, type); break;
     case 0x800333    : thunk_out_0_fff    (m, func, type); break;
     case 0x8003333   : thunk_out_0_ffff   (m, func, type); break;
     case 0x8303      : thunk_out_f_f      (m, func, type); break;
+    case 0x8004      : thunk_out_0_F      (m, func, type); break;
+    case 0x80044     : thunk_out_0_FF     (m, func, type); break;
+    case 0x800444    : thunk_out_0_FFF    (m, func, type); break;
+    case 0x8004444   : thunk_out_0_FFFF   (m, func, type); break;
     case 0x800444444 : thunk_out_0_FFFFFF (m, func, type); break;
     case 0x8103      : thunk_out_i_f      (m, func, type); break;
     case 0x8404      : thunk_out_F_F      (m, func, type); break;
@@ -591,12 +597,12 @@ void (*setup_thunk_in(uint32_t fidx))() {
     setup_call(m, fidx);
 
     // Set the type of the unset stack elements
-    for(int p=0; p<type->param_count; p++) {
+    for(uint32_t p=0; p<type->param_count; p++) {
         m->stack[m->fp+p].value_type = type->params[p];
     }
 
     // Return the thunk_in function
-    void (*f)(void);
+    void (*f)(void) = NULL;
     switch (thunk_mask) {
     case 0x800      : f = (void (*)(void)) thunk_in_0_0; break;
     case 0x8101     : f = (void (*)(void)) thunk_in_i_i; break;
@@ -654,7 +660,7 @@ bool interpret(Module *m) {
     uint32_t     arg, val, fidx, tidx, cond, depth, count;
     uint32_t     flags, offset, addr;
     uint8_t     *maddr, *mem_end;
-    uint32_t    *depths;
+    //uint32_t    *depths;
     uint8_t      opcode;
     uint32_t     a, b, c; // I32 math
     uint64_t     d, e, f; // I64 math
@@ -692,7 +698,7 @@ bool interpret(Module *m) {
             continue;
         case 0x04:  // if
             read_LEB(bytes, &m->pc, 32);  // ignore block type
-            Block *block = m->block_lookup[cur_pc];
+            block = m->block_lookup[cur_pc];
             push_block(m, block, m->sp);
 
             cond = stack[m->sp--].value.uint32;
@@ -766,17 +772,21 @@ bool interpret(Module *m) {
             continue;
         case 0x0e:  // br_table
             count = read_LEB(bytes, &m->pc, 32);
-            depths = acalloc(count, sizeof(uint32_t), "uint32_t");
+            if (count > BR_TABLE_SIZE) {
+                // TODO: check this prior to runtime
+                sprintf(exception, "br_table size %d exceeds max %d\n",
+                        count, BR_TABLE_SIZE);
+                return false;
+            }
             for(uint32_t i=0; i<count; i++) {
-                depths[i] = read_LEB(bytes, &m->pc, 32);
+                m->br_table[i] = read_LEB(bytes, &m->pc, 32);
             }
             depth = read_LEB(bytes, &m->pc, 32);
 
-            int32_t didx = stack[m->sp--].value.uint32;
-            if (didx >= 0 && didx < count) {
-                depth = depths[didx];
+            int32_t didx = stack[m->sp--].value.int32;
+            if (didx >= 0 && didx < (int32_t)count) {
+                depth = m->br_table[didx];
             }
-            free(depths);
 
             m->csp -= depth;
             // set to end for pop_block
@@ -816,6 +826,7 @@ bool interpret(Module *m) {
             continue;
         case 0x11:  // call_indirect
             tidx = read_LEB(bytes, &m->pc, 32); // TODO: use tidx?
+            (void)tidx;
             read_LEB(bytes, &m->pc, 1); // reserved immediate
             val = stack[m->sp--].value.uint32;
             if (m->options.mangle_table_index) {
@@ -825,10 +836,12 @@ bool interpret(Module *m) {
                     debug("      - entries: %p, original val: 0x%x, new val: 0x%x\n",
                         m->table.entries, val, (uint32_t)m->table.entries - val);
                 }
+                //val = val - (uint32_t)((uint64_t)m->table.entries & 0xFFFFFFFF);
                 val = val - (uint32_t)m->table.entries;
             }
-            if (val < 0 || val >= m->table.maximum) {
-                sprintf(exception, "undefined element 0x%x", val);
+            if (val >= m->table.maximum) {
+                sprintf(exception, "undefined table element 0x%x, max: 0x%x",
+                        val, m->table.maximum);
                 return false;
             }
 
@@ -945,8 +958,8 @@ bool interpret(Module *m) {
             }
             m->memory.pages += delta;
             m->memory.bytes = arecalloc(m->memory.bytes,
-                                        prev_pages*pow(2,16),
-                                        m->memory.pages*pow(2,16),
+                                        prev_pages*PAGE_SIZE,
+                                        m->memory.pages*PAGE_SIZE,
                                         sizeof(uint32_t),
                                         "Module->memory.bytes");
             continue;
@@ -964,7 +977,7 @@ bool interpret(Module *m) {
             if (offset+addr < addr) { overflow = true; }
             maddr = m->memory.bytes+offset+addr;
             if (maddr < m->memory.bytes) { overflow = true; }
-            mem_end = m->memory.bytes+m->memory.pages*(uint32_t)pow(2,16);
+            mem_end = m->memory.bytes+m->memory.pages*(uint32_t)PAGE_SIZE;
             if (maddr+LOAD_SIZE[opcode-0x28] > mem_end) {
                 overflow = true;
             }
@@ -1031,7 +1044,7 @@ bool interpret(Module *m) {
             if (offset+addr < addr) { overflow = true; }
             maddr = m->memory.bytes+offset+addr;
             if (maddr < m->memory.bytes) { overflow = true; }
-            mem_end = m->memory.bytes+m->memory.pages*(uint32_t)pow(2,16);
+            mem_end = m->memory.bytes+m->memory.pages*(uint32_t)PAGE_SIZE;
             if (maddr+LOAD_SIZE[opcode-0x28] > mem_end) {
                 overflow = true;
             }
@@ -1460,6 +1473,7 @@ bool interpret(Module *m) {
             return false;
         }
     }
+    return false; // We shouldn't reach here
 }
 
 void run_init_expr(Module *m, uint8_t type, uint32_t *pc) {
@@ -1498,16 +1512,13 @@ uint32_t get_export_fidx(Module *m, char *name) {
     return -1;
 }
 
-Module *load_module(char *path, Options options) {
-    uint32_t  mod_len;
-    uint8_t  *bytes;
+Module *load_module(uint8_t *bytes, uint32_t byte_count, Options options) {
     uint8_t   vt;
     uint32_t  pos = 0, word;
     Module   *m;
 
     // Allocate the module
     m = acalloc(1, sizeof(Module), "Module");
-    m->path = path;
     m->options = options;
 
     // Empty stacks
@@ -1515,10 +1526,8 @@ Module *load_module(char *path, Options options) {
     m->fp  = -1;
     m->csp = -1;
 
-    // open and mmap the WASM module
-    bytes = mmap_file(path, &mod_len);
-    m->byte_count = mod_len;
     m->bytes = bytes;
+    m->byte_count = byte_count;
     m->block_lookup = acalloc(m->byte_count, sizeof(Block *),
                                 "function->block_lookup");
     m->start_function = -1;
@@ -1531,7 +1540,7 @@ Module *load_module(char *path, Options options) {
     ASSERT(word == WA_VERSION, "Wrong module version 0x%x\n", word);
 
     // Read the sections
-    while (pos < mod_len) {
+    while (pos < byte_count) {
         uint32_t id = read_LEB(bytes, &pos, 7);
         uint32_t slen = read_LEB(bytes, &pos, 32);
         int start_pos = pos;
@@ -1547,6 +1556,7 @@ Module *load_module(char *path, Options options) {
                 // TODO: make use of these
                 uint32_t memorysize = read_LEB(bytes, &pos, 32);
                 uint32_t tablesize = read_LEB(bytes, &pos, 32);
+                (void)memorysize; (void)tablesize;
             } else {
                 error("Ignoring unknown custom section '%s'\n", name);
             }
@@ -1591,8 +1601,8 @@ Module *load_module(char *path, Options options) {
                       gidx, import_count, external_kind, import_module,
                       import_field);
 
-                uint32_t type_index, fidx;
-                uint8_t element_type, content_type, mutability;
+                uint32_t type_index = 0, fidx;
+                uint8_t content_type = 0, mutability;
 
                 switch (external_kind) {
                 case 0x00: // Function
@@ -1603,7 +1613,9 @@ Module *load_module(char *path, Options options) {
                     parse_memory_type(m, &pos); break;
                 case 0x03: // Global
                     content_type = read_LEB(bytes, &pos, 7);
-                    mutability = read_LEB(bytes, &pos, 1); break;
+                    // TODO: use mutability
+                    mutability = read_LEB(bytes, &pos, 1);
+                    (void)mutability; break;
                 }
 
                 void *val;
@@ -1745,7 +1757,7 @@ Module *load_module(char *path, Options options) {
             // Allocate memory
             //for (uint32_t c=0; c<memory_count; c++) {
             parse_memory_type(m, &pos);
-            m->memory.bytes = acalloc(m->memory.pages*pow(2,16),
+            m->memory.bytes = acalloc(m->memory.pages*PAGE_SIZE,
                                     sizeof(uint32_t),
                                     "Module->memory.bytes");
             //}
@@ -1756,7 +1768,9 @@ Module *load_module(char *path, Options options) {
             for (uint32_t g=0; g<global_count; g++) {
                 // Same allocation Import of global above
                 uint8_t type = read_LEB(bytes, &pos, 7);
+                // TODO: use mutability
                 uint8_t mutability = read_LEB(bytes, &pos, 1);
+                (void)mutability;
                 uint32_t gidx = m->global_count;
                 m->global_count += 1;
                 m->globals = arecalloc(m->globals, gidx, m->global_count,
@@ -1808,8 +1822,10 @@ Module *load_module(char *path, Options options) {
                 if (m->options.mangle_table_index) {
                     // offset is the table address + the index (not sized for the
                     // pointer size) so get the actual (sized) index
-                    debug("   origin offset offset: 0x%x, new offset: 0x%x\n",
-                          offset, offset - (uint32_t)m->table.entries);
+                    debug("   origin offset: 0x%x, table addr: 0x%x, new offset: 0x%x\n",
+                          offset, (uint32_t)m->table.entries,
+                          offset - (uint32_t)m->table.entries);
+                    //offset = offset - (uint32_t)((uint64_t)m->table.entries & 0xFFFFFFFF);
                     offset = offset - (uint32_t)m->table.entries;
                 }
 
@@ -1844,12 +1860,12 @@ Module *load_module(char *path, Options options) {
                 // Copy the data to the memory offset
                 uint32_t size = read_LEB(bytes, &pos, 32);
                 if (!m->options.disable_memory_bounds) {
-                    ASSERT(offset+size <= m->memory.pages*pow(2,16),
+                    ASSERT(offset+size <= m->memory.pages*PAGE_SIZE,
                         "memory overflow %d+%d > %d\n", offset, size,
-                        (uint32_t)(m->memory.pages*pow(2,16)));
+                        (uint32_t)(m->memory.pages*PAGE_SIZE));
                 }
-                info("  setting 0x%x bytes of memory at offset 0x%x\n",
-                     size, offset);
+                info("  setting 0x%x bytes of memory at 0x%x + offset 0x%x\n",
+                     size, m->memory.bytes, offset);
                 memcpy(m->memory.bytes+offset, bytes+pos, size);
                 pos += size;
             }
@@ -1863,7 +1879,7 @@ Module *load_module(char *path, Options options) {
                 uint32_t body_size = read_LEB(bytes, &pos, 32);
                 uint32_t payload_start = pos;
                 uint32_t local_count = read_LEB(bytes, &pos, 32);
-                uint32_t save_pos, tidx, lidx, lecount, code_start, code_end;
+                uint32_t save_pos, tidx, lidx, lecount;
 
                 // Local variable handling
 
@@ -1874,6 +1890,7 @@ Module *load_module(char *path, Options options) {
                     lecount = read_LEB(bytes, &pos, 32);
                     function->local_count += lecount;
                     tidx =  read_LEB(bytes, &pos, 7);
+                    (void)tidx; // TODO: use tidx?
                 }
                 function->locals = acalloc(function->local_count,
                                            sizeof(uint32_t),
@@ -1944,53 +1961,8 @@ Module *load_module(char *path, Options options) {
 
 // if entry == NULL,  attempt to invoke 'main' or '_main'
 // Return value of false means exception occured
-bool invoke(Module *m, char *entry, int argc, char **argv) {
-    uint32_t  fidx = -1;
-    Type     *type;
+bool invoke(Module *m, uint32_t fidx) {
     bool      result;
-
-    // Find entry function index
-    if (entry) {
-        fidx = get_export_fidx(m, entry);
-    }
-    if (fidx == -1) {
-        entry = "main";
-        fidx = get_export_fidx(m, entry);
-    }
-    if (fidx == -1) {
-        entry = "_main";
-        fidx = get_export_fidx(m, entry);
-    }
-    if (fidx == -1) {
-        FATAL("no exported function named '%s'\n", entry);
-    }
-    type = m->functions[fidx].type;
-
-    // Parse and add arguments to the stack
-    for (int i=0; i<argc; i++) {
-        for (int j=0; argv[i][j]; j++) {
-            argv[i][j] = tolower(argv[i][j]); // lowecase
-        }
-        m->sp++;
-        StackValue *sv = &m->stack[m->sp];
-        sv->value_type = type->params[i];
-        switch (type->params[i]) {
-        case I32: sv->value.uint32 = strtoul(argv[i], NULL, 0); break;
-        case I64: sv->value.uint64 = strtoull(argv[i], NULL, 0); break;
-        case F32: if (strncmp("-nan", argv[i], 4) == 0) {
-                      sv->value.f32 = -NAN;
-                  } else {
-                      sv->value.f32 = atof(argv[i]);
-                  }; break;
-        case F64: if (strncmp("-nan", argv[i], 4) == 0) {
-                      sv->value.f64 = -NAN;
-                  } else {
-                      sv->value.f64 = atof(argv[i]);
-                  }; break;
-        }
-    }
-
-    warn("Running '%s' function 0x%x ('%s')\n", m->path, fidx, entry);
 
     if (TRACE && DEBUG) { dump_stacks(m); }
 

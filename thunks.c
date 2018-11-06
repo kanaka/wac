@@ -2835,6 +2835,11 @@ void thunk_out_0_ffff(Module *m, Block *function, Type *type) {
   m->sp = m->sp + -4;
 }
 
+void thunk_out_0_FFFF(Module *m, Block *function, Type *type) {
+  ((void (*)(double, double, double, double))function->func_ptr)(m->stack[m->sp-3].value.f64, m->stack[m->sp-2].value.f64, m->stack[m->sp-1].value.f64, m->stack[m->sp-0].value.f64);
+  m->sp = m->sp + -4;
+}
+
 void thunk_out_0_FFFFFF(Module *m, Block *function, Type *type) {
   ((void (*)(double, double, double, double, double, double))function->func_ptr)(m->stack[m->sp-5].value.f64, m->stack[m->sp-4].value.f64, m->stack[m->sp-3].value.f64, m->stack[m->sp-2].value.f64, m->stack[m->sp-1].value.f64, m->stack[m->sp-0].value.f64);
   m->sp = m->sp + -6;

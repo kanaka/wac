@@ -433,6 +433,7 @@ void thunk_out_0_iiii(Module *m, Block *function, Type *type);
 void thunk_out_i_iiii(Module *m, Block *function, Type *type);
 void thunk_out_i_iiiii(Module *m, Block *function, Type *type);
 void thunk_out_0_ffff(Module *m, Block *function, Type *type);
+void thunk_out_0_FFFF(Module *m, Block *function, Type *type);
 void thunk_out_0_FFFFFF(Module *m, Block *function, Type *type);
 
 

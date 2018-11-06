@@ -2,14 +2,14 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <stdint.h>
+
+#include <limits.h>
 #include <math.h>
-#include <limits.h>   // for CHAR_BIT
 #include <string.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <sys/mman.h>
 
 #include "util.h"
+
+// type readers
 
 uint64_t read_LEB_(uint8_t *bytes, uint32_t *pos, uint32_t maxbits, bool sign) {
     uint64_t result = 0;
@@ -62,75 +62,6 @@ char *read_string(uint8_t *bytes, uint32_t *pos, uint32_t *result_len) {
     if (result_len) { *result_len = str_len; }
     return str;
 }
-
-// open and mmap a file
-uint8_t *mmap_file(char *path, uint32_t *len) {
-    int          fd;
-    struct stat  sb;
-    uint8_t     *bytes;
-
-    fd = open(path, O_RDONLY);
-    if (fd < 0) { FATAL("could not open file '%s'\n", path); }
-    if (fstat(fd, &sb) < 0) { FATAL("could stat file '%s'\n", path); }
-
-    bytes = mmap(0, sb.st_size, PROT_READ, MAP_SHARED, fd, 0);
-    if (len) {
-        *len = sb.st_size;  // Return length if requested
-    }
-    if (bytes == MAP_FAILED) { FATAL("could not mmap file '%s'", path); }
-    return bytes;
-}
-
-// Assert calloc
-void *acalloc(size_t nmemb, size_t size,  char *name) {
-    void *res = calloc(nmemb, size);
-    if (res == NULL) {
-        FATAL("Could not allocate %d bytes for %s", (int)nmemb * size, name);
-    }
-    return res;
-}
-
-// Assert realloc
-void *arecalloc(void *ptr, size_t old_nmemb, size_t nmemb,
-                size_t size,  char *name) {
-    void *res = realloc(ptr, nmemb * size);
-    if (res == NULL) {
-        FATAL("Could not allocate %d bytes for %s", (int)nmemb * size, name);
-    }
-    // Initialize new memory
-    memset(res + old_nmemb * size, 0, (nmemb - old_nmemb) * size);
-    return res;
-}
-
-// Split a space separated strings into an array of strings
-// Returns 0 on failure
-// Memory must be freed by caller
-// Based on: http://stackoverflow.com/a/11198630/471795
-char **split_string(char *str, int *count) {
-    char **res = NULL;
-    char  *p   = strtok(str, " ");
-    int    idx = 0;
-
-    // split string and append tokens to 'res'
-    while (p) {
-        res = realloc(res, sizeof(char*) * idx+1);
-        if (res == NULL) {
-            return 0;
-        }
-
-        res[idx++] = p;
-        p = strtok(NULL, " ");
-    }
-
-    /* realloc one extra element for the last NULL */
-
-    res = realloc (res, sizeof(char*) * (idx+1));
-    res[idx] = 0;
-
-    if (count) { *count = idx; }
-    return res;
-}
-
 
 // Math
 
@@ -192,24 +123,3 @@ double wa_fmin(double a, double b) {
 }
 
 
-// Dynamic lib resolution
-
-// If filename is NULL, a NULL handle will be used
-// Returns true if resolution successful
-// Return false and sets err if resolution is not successful
-bool resolvesym(char *filename, char *symbol, void **val, char **err) {
-    void *handle = NULL;
-    dlerror(); // clear errors
-    if (filename) {
-        handle = dlopen(filename, RTLD_LAZY);
-        if (!handle) {
-            *err = dlerror();
-            return false;
-        }
-    }
-    *val = dlsym(handle, symbol);
-    if ((*err = dlerror()) != NULL) {
-        return false;
-    }
-    return true;
-}

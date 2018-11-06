@@ -135,6 +135,7 @@ thunk_out(c_file, h_file, None, 'i', 'i', 'i', 'i')
 thunk_out(c_file, h_file, 'i', 'i', 'i', 'i', 'i')
 thunk_out(c_file, h_file, 'i', 'i', 'i', 'i', 'i', 'i')
 thunk_out(c_file, h_file, None, 'f', 'f', 'f', 'f')
+thunk_out(c_file, h_file, None, 'F', 'F', 'F', 'F')
 thunk_out(c_file, h_file, None, 'F', 'F', 'F', 'F', 'F', 'F')
 
 c_file.write('\n\n')

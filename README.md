@@ -146,6 +146,59 @@ Run the `func.wast` test file (to test function calls) from the spec:
 ./runtest.py --wast2wasm ./wabt/out/gcc/Release/wast2wasm --interpreter ./wac spec/test/core/func.wast
 ```
 
+## Standalone Builds using Fooboot
+
+wac and wace can be built to run as standalone bootable programs
+using [fooboot](https://github.com/kanaka/fooboot):
+
+```
+cd wac
+git clone https://github.com/kanaka/fooboot
+make PLATFORM=fooboot clean
+make PLATFORM=fooboot wac wace examples_wast/addTwo.wasm
+```
+
+The `fooboot/runfoo` script can be used to boot wac/wace with QEMU.
+`fooboot/runfoo` also creates a connection on a serial port (COM2)
+that allows files to be read from the host system:
+
+```
+fooboot/runfoo wac --repl examples_wast/addTwo.wasm
+QEMU waiting for connection on: disconnected:tcp:localhost:21118,server
+webassembly> addTwo 2 3
+0x5:i32
+```
+
+The standalone wac/wace builds can also be built into an ISO image
+that can boot directly on real hardware. You will need Grub 2 and the
+Grub PC/BIOS binary files (grub-pc-bin) and the xorriso program to be
+able to do this. Also, the wasm modules that you wish to run must be
+built into the binary to become part of a simple in-memory
+file-system:
+
+```
+echo "examples_wast/addTwo.wasm" > mem_fs_files
+make PLATFORM=fooboot \
+     FOO_TARGETS="wac" \
+     FOO_CMDLINE="examples_wast/addTwo.wasm addTwo 3 4" \
+     boot.iso
+```
+
+You can now boot the ISO with QEMU like this:
+
+```
+qemu-system-i386 -cdrom boot.iso
+```
+
+Or you can burn the ISO to a USB device and boot from it on real
+hardware.  This will destroy any data on the USB device! Also, make
+completely sure that /dev/MY\_USB\_DEVICE is really the USB device you
+want to overwrite and not your hard drive. You have been warned!
+
+```
+sudo dd if=boot.iso of=/dev/MY_USB_DEVICE && sync
+# Now boot you can boot from the USB device
+```
 
 ## License
 
