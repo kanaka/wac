@@ -23,6 +23,10 @@ void usage(char *prog) {
 //
 // Imports used by specification tests
 //
+#define PAGE_COUNT   1
+#define TABLE_COUNT  20
+Memory _spectest__memory_ = {PAGE_COUNT, PAGE_COUNT, PAGE_COUNT, NULL};
+Table _spectest__table_ = {ANYFUNC, TABLE_COUNT, TABLE_COUNT, TABLE_COUNT, NULL};
 uint32_t _spectest__global_i32_ = 666;
 
 void _spectest__print_(uint32_t val) {
@@ -100,6 +104,10 @@ int main(int argc, char **argv) {
     }
 
     mod_path = argv[optidx++];
+
+    // Allocate memory and table used for spec test
+    _spectest__memory_.bytes = malloc(PAGE_COUNT * PAGE_SIZE);
+    _spectest__table_.entries = malloc(TABLE_COUNT);
 
     // Load the module
 #if PLATFORM==1

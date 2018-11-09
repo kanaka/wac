@@ -1605,15 +1605,27 @@ Module *load_module(uint8_t *bytes, uint32_t byte_count, Options options) {
                 case 0x01:  // Table
                     ASSERT(!m->table.entries,
                            "More than 1 table not supported\n");
+                    Table *tval = val;
                     m->table.entries = val;
+                    ASSERT(m->table.initial <= tval->maximum,
+                        "Imported table is not large enough\n");
                     warn("  setting table.entries to: %p\n", *(uint32_t **)val);
                     m->table.entries = *(uint32_t **)val;
+                    m->table.size = tval->size;
+                    m->table.maximum = tval->maximum;
+                    m->table.entries = tval->entries;
                     break;
                 case 0x02:  // Memory
                     ASSERT(!m->memory.bytes,
                            "More than 1 memory not supported\n");
-                    warn("  setting memory.bytes to: %p\n", *(uint8_t **)val);
-                    m->memory.bytes = *(uint8_t **)val;
+                    Memory *mval = val;
+                    ASSERT(m->memory.initial <= mval->maximum,
+                        "Imported memory is not large enough\n");
+                    warn("  setting memory pages: %d, max: %d, bytes: %p\n",
+                         mval->pages, mval->maximum, mval->bytes);
+                    m->memory.pages = mval->pages;
+                    m->memory.maximum = mval->maximum;
+                    m->memory.bytes = mval->bytes;
                     break;
                 case 0x03:  // Global
                     m->global_count += 1;

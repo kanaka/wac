@@ -17,13 +17,15 @@
 /////////////////////////////////////////////////////////
 // emscripten memory layout
 
-#define TOTAL_MEMORY  0x1000000 // 16MB
-#define TOTAL_TABLE   256
+#define PAGE_COUNT   256 // 64K * 256 = 16MB
+#define TOTAL_PAGES  ULONG_MAX / PAGE_SIZE
+#define TABLE_COUNT  256
 
-uint8_t  *_env__memory_ = 0;
+Memory _env__memory_ = {TOTAL_PAGES, TOTAL_PAGES, TOTAL_PAGES, NULL};
 uint8_t  *_env__memoryBase_;
 
-uint32_t *_env__table_ = 0;
+Table     _env__table_ = {ANYFUNC, TABLE_COUNT, TABLE_COUNT, TABLE_COUNT, 0};
+//uint32_t *_env__table_ = 0;
 uint32_t *_env__tableBase_;
 
 double    _global__NaN_         = NAN;
@@ -35,10 +37,10 @@ uint32_t *_env__tempDoublePtr_;
 
 // Initialize function/jump table
 void segv_thunk_handler(int cause, siginfo_t * info, void *uap) {
-    int index = (info->si_addr - (void *)_env__table_);
-    if (info->si_addr >= (void *)_env__table_ &&
-        (info->si_addr - (void *)_env__table_) < TOTAL_TABLE) {
-        uint32_t fidx = _env__table_[index];
+    int index = (info->si_addr - (void *)_env__table_.entries);
+    if (info->si_addr >= (void *)_env__table_.entries &&
+        (info->si_addr - (void *)_env__table_.entries) < TABLE_COUNT) {
+        uint32_t fidx = _env__table_.entries[index];
         ucontext_t *context = uap;
         void (*f)(void);
         f = setup_thunk_in(fidx);
@@ -66,8 +68,8 @@ void init_thunk_in_trap() {
 
     // Allow READ/WRITE but prevent execute. This only works if PROT_EXEC does
     // in fact trap
-    debug("mprotect on table at: %p\n", _env__table_);
-    if (mprotect(_env__table_, TOTAL_TABLE*sizeof(uint32_t),
+    debug("mprotect on table at: %p\n", _env__table_.entries);
+    if (mprotect(_env__table_.entries, TABLE_COUNT*sizeof(uint32_t),
                  PROT_READ | PROT_WRITE)) {
         perror("mprotect");
         exit(1);
@@ -76,32 +78,27 @@ void init_thunk_in_trap() {
 
 // Initialize memory globals and function/jump table
 void init_wace() {
-    _env__memoryBase_ = calloc(TOTAL_MEMORY, sizeof(uint8_t));
-
-    //_env__tableBase_ = calloc(TOTAL_TABLE, sizeof(uint32_t));
-
-    //_env__table_ = calloc(TOTAL_TABLE, sizeof(uint32_t));
-    //_env__tableBase_ = 0;
-
-    // This arrangement correlates to the module mangle_table_offset option
-    if (posix_memalign((void **)&_env__table_, sysconf(_SC_PAGESIZE),
-                       TOTAL_TABLE*sizeof(uint32_t))) {
-        perror("posix_memalign");
-        exit(1);
-    }
-    _env__tableBase_ = _env__table_;
+    _env__memoryBase_ = calloc(PAGE_COUNT, PAGE_SIZE);
 
     _env__tempDoublePtr_ = (uint32_t*)_env__memoryBase_;
     _env__DYNAMICTOP_PTR_ = (uint32_t**)(_env__memoryBase_ + 16);
 
-    *_env__DYNAMICTOP_PTR_ = (uint32_t*)(_env__memoryBase_ + TOTAL_MEMORY);
+    *_env__DYNAMICTOP_PTR_ = (uint32_t*)(_env__memoryBase_ + PAGE_COUNT * PAGE_SIZE);
+
+    // This arrangement correlates to the module mangle_table_offset option
+    if (posix_memalign((void **)&_env__table_.entries, sysconf(_SC_PAGESIZE),
+                       TABLE_COUNT*sizeof(uint32_t))) {
+        perror("posix_memalign");
+        exit(1);
+    }
+    _env__tableBase_ = _env__table_.entries;
 
     info("init_mem results:\n");
-    info("  _env__memory_: %p (0x%x)\n", _env__memory_, _env__memory_);
+    info("  _env__memory_.bytes: %p\n", _env__memory_.bytes);
     info("  _env__memoryBase_: %p\n", _env__memoryBase_);
     info("  _env__DYNAMIC_TOP_PTR_: %p\n", _env__DYNAMICTOP_PTR_);
     info("  *_env__DYNAMIC_TOP_PTR_: %p\n", *_env__DYNAMICTOP_PTR_);
-    info("  _env__table_: %p\n", _env__table_);
+    info("  _env__table_.entries: %p\n", _env__table_.entries);
     info("  _env__tableBase_: 0x%x\n", _env__tableBase_);
 
     init_thunk_in_trap();
