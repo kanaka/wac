@@ -11,7 +11,7 @@
 #define STACK_SIZE      0x10000  // 65536
 #define BLOCKSTACK_SIZE 0x1000   // 4096
 #define CALLSTACK_SIZE  0x1000   // 4096
-#define BR_TABLE_SIZE   0x100    // 256
+#define BR_TABLE_SIZE   0x10000  // 65536
 
 #define I32       0x7f  // -0x01
 #define I64       0x7e  // -0x02
@@ -26,13 +26,13 @@
 #define KIND_MEMORY   2
 #define KIND_GLOBAL   3
 
-
 typedef struct Type {
     uint8_t   form;
     uint32_t  param_count;
     uint32_t *params;
     uint32_t  result_count;
     uint32_t *results;
+    uint64_t  mask; // unique mask value for each type
 } Type;
 
 typedef union FuncPtr {
@@ -156,11 +156,13 @@ typedef struct Module {
 //
 
 extern char exception[];
+uint64_t get_type_mask(Type *type);
 char *value_repr(StackValue *v);
-uint32_t get_export_fidx(Module *m, char *name);
 void (*setup_thunk_in(uint32_t fidx))();
 void setup_call(Module *m, uint32_t fidx);
 bool interpret(Module *m);
+
+uint32_t get_export_fidx(Module *m, char *name);
 Module *load_module(uint8_t *bytes, uint32_t byte_count, Options options);
 bool invoke(Module *m, uint32_t fidx);
 

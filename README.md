@@ -146,6 +146,18 @@ Run the `func.wast` test file (to test function calls) from the spec:
 ./runtest.py --wast2wasm ./wabt/out/gcc/Release/wast2wasm --interpreter ./wac spec/test/core/func.wast
 ```
 
+Run all the spec tests apart from a few that currently fail (mostly due to
+`runtest.py` missing support for some syntax used in those test files):
+
+```
+BROKE_TESTS="comments exports imports linking names data elem inline-module"
+for t in $(ls spec/test/core/*.wast | grep -Fv "${BROKE_TESTS// /$'\n'}"); do
+    echo -e "\nTESTING ${t}"
+    ./runtest.py ${t} || break
+done
+```
+
+
 ## Standalone Builds using Fooboot
 
 wac and wace can be built to run as standalone bootable programs
@@ -202,4 +214,4 @@ sudo dd if=boot.iso of=/dev/MY_USB_DEVICE && sync
 
 ## License
 
-MPL-2.0
+MPL-2.0 (see LICENSE).

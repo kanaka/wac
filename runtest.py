@@ -143,6 +143,8 @@ parser.add_argument('--wast2wasm', type=str,
 parser.add_argument('--interpreter', type=str,
         default=os.environ.get("WA_CMD", "./wac"),
         help="Path to WebAssembly interpreter")
+parser.add_argument('--verbose', action='store_true',
+        help="Verbose logging")
 parser.add_argument('--no-cleanup', action='store_true',
         help="Keep temporary *.wasm files")
 
@@ -167,10 +169,16 @@ parser.add_argument('test_file', type=argparse.FileType('r'),
 C_SKIP_TESTS = (
         # names.wast
         'invoke \"~!',
+        'invoke \".*\\\\',
+        'invoke \"print32',
+        # elem.wast
+        'module1',
         # conversions.wast
         'reinterpret_f.*nan',
         # float_misc.wast
         'f64.add.*0x1.fffffffffffffp\+969',
+        # float_literals.wast
+        'invoke.*-hex-sep5',
         # float_exprs.wast
         'nonarithmetic_nan_bitpattern.*03210' )
 PY_SKIP_TESTS = (
@@ -194,30 +202,46 @@ def read_forms(string):
         # Keep track of line number
         if string[pos] == '\n': line += 1
 
-        # Handle top-level elements
-        if depth == 0:
-            # Add top-level comments
-            if string[pos:pos+2] == ";;":
-                end = string.find("\n", pos)
-                if end == -1: end == len(string)
-                forms.append(string[pos:end])
-                pos = end
-                continue
+        # Ignore whitespace between top-level forms
+        if string[pos] in (' ', '\n', '\t'):
+            if depth != 0:
+                form += string[pos]
+            pos += 1
+            continue
 
-            # TODO: handle nested multi-line comments
-            if string[pos:pos+2] == "(;":
-                # Skip multi-line comment
-                end = string.find(";)", pos)
-                if end == -1:
-                    raise Exception("mismatch multiline comment on line %d: '%s'" % (
-                        line, string[pos:pos+80]))
-                pos = end+2
-                continue
+        #print("here0 line: %d, forms: %s" % (line, repr(forms)))
+        # Add top-level comments
+        if string[pos:pos+2] == ";;":
+            print
+            end = string.find("\n", pos)
+            if end == -1: end == len(string)
+            #form += string[pos:end]
+            #forms.append(string[pos:end])
+            pos = end
+            continue
 
-            # Ignore whitespace between top-level forms
-            if string[pos] in (' ', '\n', '\t'):
-                pos += 1
-                continue
+        # TODO: handle nested multi-line comments
+        if string[pos:pos+2] == "(;":
+            # Skip multi-line comment
+            end = string.find(";)", pos)
+            if end == -1:
+                raise Exception("mismatch multiline comment on line %d: '%s'" % (
+                    line, string[pos:pos+80]))
+            pos = end+2
+            continue
+
+        # handle strings
+        if string[pos] == '"':
+            end = string.find('"', pos+1)
+            # TODO: fix when backslash itself may be quoted
+            while string[end-1] == '\\':
+                end = string.find('"', end+1)
+            if end == -1:
+                raise Exception("unterminated string line %d: '%s'" % (
+                    line, string[pos:pos+80]))
+            form += string[pos:end+1]
+            pos = end+1
+            continue
 
         # Read a top-level form
         if string[pos] == '(': depth += 1
@@ -297,7 +321,7 @@ def hexpad64(i):
     return "0x%016x" % i
 
 def invoke(r, args, cmd):
-    r.writeline(cmd)
+    r.writeline(cmd.strip())
 
     return r.read_to_prompt(['\r\nwebassembly> ', '\nwebassembly> '],
             timeout=args.test_timeout)
@@ -450,6 +474,9 @@ def skip_test(form, skip_list):
         if re.search(s, form):
             return True
     return False
+def is_ascii(s):
+    return all(ord(c) > 8 and ord(c) < 128 for c in s)
+
 
 
 if __name__ == "__main__":
@@ -465,36 +492,34 @@ if __name__ == "__main__":
     else:
         SKIP_TESTS = C_SKIP_TESTS
 
-    (t1fd, wast_tempfile) = tempfile.mkstemp(suffix=".wast")
-    (t2fd, wasm_tempfile) = tempfile.mkstemp(suffix=".wasm")
+    forms = read_forms(opts.test_file.read())
+    r = None
 
-    try:
-        forms = read_forms(opts.test_file.read())
-        r = None
+    for form in forms:
+        try:
+            (t1fd, wast_tempfile) = tempfile.mkstemp(suffix=".wast")
+            (t2fd, wasm_tempfile) = tempfile.mkstemp(suffix=".wasm")
+            os.close(t1fd)
+            os.close(t2fd)
 
-        for form in forms:
             if  ";;" == form[0:2]:
                 log(form)
             elif skip_test(form, SKIP_TESTS):
                 log("Skipping test: %s" % form[0:60])
             elif re.match("^\(assert_trap\s+\(module", form):
                 log("ignoring assert_trap around module")
-                pass
             elif re.match("^\(assert_exhaustion\\b.*", form):
                 log("ignoring assert_exhaustion")
-                pass
             elif re.match("^\(assert_unlinkable\\b.*", form):
                 log("ignoring assert_unlinkable")
-                pass
             elif re.match("^\(assert_malformed\\b.*", form):
                 log("ignoring assert_malformed")
-                pass
             elif re.match("^\(assert_return[_a-z]*_nan\\b.*", form):
                 log("ignoring assert_return_.*_nan")
-                pass
+            elif re.match("^\(assert_return\s+\(get.*", form):
+                log("ignoring assert_return (get")
             elif re.match(".*\(invoke\s+\$\\b.*", form):
                 log("ignoring invoke $FOO")
-                pass
 
             elif re.match("^\(module\\b.*", form):
                 log("Writing WAST module to '%s'" % wast_tempfile)
@@ -523,7 +548,10 @@ if __name__ == "__main__":
                     sys.exit(1)
 
             elif re.match("^\(assert_return\\b.*", form):
-                #log("%s" % form)
+                if not is_ascii(form):
+                    log("Skipping assert_return with non-ASCII chars: %s" % form[0:60])
+                    continue
+                log("%s" % repr(form))
                 test_assert_return(r, opts, form)
             elif re.match("^\(assert_trap\\b.*", form):
                 #log("%s" % form)
@@ -535,11 +563,14 @@ if __name__ == "__main__":
                 pass
             else:
                 raise Exception("unrecognized form '%s...'" % form[0:40])
-    finally:
-        if not opts.no_cleanup:
-            log("Removing tempfiles")
-            os.remove(wast_tempfile)
-            os.remove(wasm_tempfile)
-        else:
-            log("Leaving tempfiles: %s" % (
-                [wast_tempfile, wasm_tempfile]))
+        finally:
+            if not opts.no_cleanup:
+                if opts.verbose:
+                    log("Removing tempfiles: %s" % (
+                        [wast_tempfile, wasm_tempfile]))
+                os.remove(wast_tempfile)
+                os.remove(wasm_tempfile)
+            else:
+                if opts.verbose:
+                    log("Leaving tempfiles: %s" % (
+                        [wast_tempfile, wasm_tempfile]))

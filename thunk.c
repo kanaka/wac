@@ -8,27 +8,9 @@
 // Outbound Thunks (calling imported functions)
 //
 
-uint64_t get_thunk_mask(Module *m, uint32_t fidx) {
-    Type  *type = m->functions[fidx].type;
-    uint64_t  thunk_mask = 0x80;
-
-    if (type->result_count == 1) {
-        thunk_mask |= 0x80 - type->results[0];
-    }
-    thunk_mask = thunk_mask << 4;
-    for(uint32_t p=0; p<type->param_count; p++) {
-        thunk_mask = ((uint64_t)thunk_mask) << 4;
-        thunk_mask |= 0x80 - type->params[p];
-    }
-
-    return thunk_mask;
-}
-
-
 void thunk_out(Module *m, uint32_t fidx) {
     Block    *func = &m->functions[fidx];
     Type     *type = func->type;
-    uint64_t  thunk_mask = get_thunk_mask(m, fidx);
     if (TRACE) {
         warn("  >>> thunk_out 0x%x(%d) %s.%s(",
              func->fidx, func->fidx,
@@ -37,10 +19,10 @@ void thunk_out(Module *m, uint32_t fidx) {
             warn("%s%s", value_repr(&m->stack[m->sp-p]), p ? " " : "");
         }
         warn("), %d results\n", type->result_count);
-        debug("      thunk_mask: 0x%x\n", thunk_mask);
+        debug("      mask: 0x%x\n", type->mask);
     }
 
-    switch (thunk_mask) {
+    switch (type->mask) {
     case 0x800       : THUNK_OUT_0(m, func, 0);              break;
     case 0x8001      : THUNK_OUT_1(m, func, 0, i);           break;
     case 0x80011     : THUNK_OUT_2(m, func, 0, i,i);         break;
@@ -63,7 +45,7 @@ void thunk_out(Module *m, uint32_t fidx) {
     case 0x800444444 : THUNK_OUT_6(m, func, 0, F,F,F,F,F,F); break;
     case 0x8103      : THUNK_OUT_1(m, func, i, f);           break;
     case 0x8404      : THUNK_OUT_1(m, func, F, F);           break;
-    default: FATAL("unsupported thunk_out mask 0x%llx\n", thunk_mask);
+    default: FATAL("unsupported thunk_out mask 0x%llx\n", type->mask);
     }
 
     if (TRACE) {
@@ -95,14 +77,13 @@ void (*setup_thunk_in(uint32_t fidx))() {
     Module   *m = _wa_current_module_; // TODO: global state, clean up somehow
     Block    *func = &m->functions[fidx];
     Type     *type = func->type;
-    uint64_t  thunk_mask = get_thunk_mask(m, fidx);
 
     // Make space on the stack
     m->sp += type->param_count;
 
     if (TRACE) {
         warn("  {{}} setup_thunk_in '%s', mask: 0x%x, ARGS FOR '>>' ARE BOGUS\n",
-             func->export_name, thunk_mask);
+             func->export_name, type->mask);
     }
 
     // Do normal function call setup. The fp will point to the start of stack
@@ -116,11 +97,11 @@ void (*setup_thunk_in(uint32_t fidx))() {
 
     // Return the thunk_in function
     void (*f)(void) = NULL;
-    switch (thunk_mask) {
+    switch (type->mask) {
     case 0x800      : f = (void (*)(void)) thunk_in_0_0; break;
     case 0x8101     : f = (void (*)(void)) thunk_in_i_i; break;
     case 0x80011    : f = (void (*)(void)) thunk_in_0_ii; break;
-    default: FATAL("unsupported thunk_in mask 0x%llx\n", thunk_mask);
+    default: FATAL("unsupported thunk_in mask 0x%llx\n", type->mask);
     }
 
     return f;

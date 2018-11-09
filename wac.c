@@ -23,10 +23,13 @@ void usage(char *prog) {
 //
 // Imports used by specification tests
 //
-uint32_t _spectest__global_ = 666;
+uint32_t _spectest__global_i32_ = 666;
 
 void _spectest__print_(uint32_t val) {
     //printf("spectest.print 0x%x:i32\n", val);
+    printf("0x%x:i32\n", val);
+}
+void _spectest__print_i32_(uint32_t val) {
     printf("0x%x:i32\n", val);
 }
 

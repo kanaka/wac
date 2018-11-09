@@ -269,6 +269,21 @@ Type *get_block_type(uint8_t value_type) {
     }
 }
 
+// TODO: calculate this while parsing types
+uint64_t get_type_mask(Type *type) {
+    uint64_t  mask = 0x80;
+
+    if (type->result_count == 1) {
+        mask |= 0x80 - type->results[0];
+    }
+    mask = mask << 4;
+    for(uint32_t p=0; p<type->param_count; p++) {
+        mask = ((uint64_t)mask) << 4;
+        mask |= 0x80 - type->params[p];
+    }
+    return mask;
+}
+
 char _value_str[256];
 char *value_repr(StackValue *v) {
     switch (v->value_type) {
@@ -473,7 +488,7 @@ Block *pop_block(Module *m) {
     // Validate the return value
     if (t->result_count == 1) {
         if (m->stack[m->sp].value_type != t->results[0]) {
-            sprintf(exception, "call signature mismatch");
+            sprintf(exception, "call type mismatch");
             return NULL;
         }
     }
@@ -575,15 +590,27 @@ bool interpret(Module *m) {
             continue;
         case 0x02:  // block
             read_LEB(bytes, &m->pc, 32);  // ignore block type
+            if (m->csp >= CALLSTACK_SIZE) {
+                sprintf(exception, "call stack exhausted");
+                return false;
+            }
             push_block(m, m->block_lookup[cur_pc], m->sp);
             continue;
         case 0x03:  // loop
             read_LEB(bytes, &m->pc, 32);  // ignore block type
+            if (m->csp >= CALLSTACK_SIZE) {
+                sprintf(exception, "call stack exhausted");
+                return false;
+            }
             push_block(m, m->block_lookup[cur_pc], m->sp);
             continue;
         case 0x04:  // if
             read_LEB(bytes, &m->pc, 32);  // ignore block type
             block = m->block_lookup[cur_pc];
+            if (m->csp >= CALLSTACK_SIZE) {
+                sprintf(exception, "call stack exhausted");
+                return false;
+            }
             push_block(m, block, m->sp);
 
             cond = stack[m->sp--].value.uint32;
@@ -703,6 +730,10 @@ bool interpret(Module *m) {
             if (fidx < m->import_count) {
                 thunk_out(m, fidx);   // import/thunk call
             } else {
+                if (m->csp >= CALLSTACK_SIZE) {
+                    sprintf(exception, "call stack exhausted");
+                    return false;
+                }
                 setup_call(m, fidx);  // regular function call
                 if (TRACE) {
                     debug("      - calling function fidx: %d at: 0x%x\n", fidx, m->pc);
@@ -725,7 +756,7 @@ bool interpret(Module *m) {
                 val = val - (uint32_t)m->table.entries;
             }
             if (val >= m->table.maximum) {
-                sprintf(exception, "undefined table element 0x%x, max: 0x%x",
+                sprintf(exception, "undefined element 0x%x (max: 0x%x) in table",
                         val, m->table.maximum);
                 return false;
             }
@@ -739,18 +770,28 @@ bool interpret(Module *m) {
             if (fidx < m->import_count) {
                 thunk_out(m, fidx);    // import/thunk call
             } else {
-                setup_call(m, fidx);   // regular function call
-
                 Block *func = &m->functions[fidx];
                 Type *ftype = func->type;
+
+                if (m->csp >= CALLSTACK_SIZE) {
+                    sprintf(exception, "call stack exhausted");
+                    return false;
+                }
+                if (ftype->mask != m->types[tidx].mask) {
+                    sprintf(exception, "indirect call type mismatch (call type and function type differ)");
+                    return false;
+                }
+
+                setup_call(m, fidx);   // regular function call
+
                 // Validate signatures match
                 if (ftype->param_count + func->local_count != m->sp - m->fp + 1) {
-                    sprintf(exception, "indirect call signature mismatch");
+                    sprintf(exception, "indirect call type mismatch (param counts differ)");
                     return false;
                 }
                 for (uint32_t f=0; f<ftype->param_count; f++) {
                     if (ftype->params[f] != m->stack[m->fp+f].value_type) {
-                        sprintf(exception, "indirect call signature mismatch");
+                        sprintf(exception, "indirect call type mismatch (param types differ)");
                         return false;
                     }
                 }
@@ -1468,6 +1509,8 @@ Module *load_module(uint8_t *bytes, uint32_t byte_count, Options options) {
                 for (uint32_t r=0; r<type->result_count; r++) {
                     type->results[r] = read_LEB(bytes, &pos, 32);
                 }
+                // TODO: calculate this above and remove get_type_mask
+                type->mask = get_type_mask(type);
                 debug("  form: 0x%x, params: %d, results: %d\n",
                       type->form, type->param_count, type->result_count);
             }
