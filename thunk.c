@@ -26,6 +26,7 @@ void thunk_out(Module *m, uint32_t fidx) {
     case 0x800       : THUNK_OUT_0(m, func, 0);              break;
     case 0x8001      : THUNK_OUT_1(m, func, 0, i);           break;
     case 0x80011     : THUNK_OUT_2(m, func, 0, i,i);         break;
+    case 0x800111    : THUNK_OUT_3(m, func, 0, i,i,i);       break;
     case 0x8001111   : THUNK_OUT_4(m, func, 0, i,i,i,i);     break;
     case 0x810       : THUNK_OUT_0(m, func, i);              break;
     case 0x8101      : THUNK_OUT_1(m, func, i, i);           break;
@@ -45,7 +46,8 @@ void thunk_out(Module *m, uint32_t fidx) {
     case 0x800444444 : THUNK_OUT_6(m, func, 0, F,F,F,F,F,F); break;
     case 0x8103      : THUNK_OUT_1(m, func, i, f);           break;
     case 0x8404      : THUNK_OUT_1(m, func, F, F);           break;
-    default: FATAL("unsupported thunk_out mask 0x%llx\n", type->mask);
+    // TODO: casting this can truncate the top of the mask
+    default: FATAL("unsupported thunk_out mask 0x%x\n", (unsigned int)type->mask);
     }
 
     if (TRACE) {

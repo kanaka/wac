@@ -96,6 +96,12 @@ clean::
 ##########################################################
 
 # Wast example build rules
+examples_wam/%.wasm: examples_wam/%.wam
+	wamp $^ > $(subst .wasm,.wast,$@)
+	wasm-as $(subst .wasm,.wast,$@) -o $@
+
+examples_wam/snake.wasm: examples_wam/console_curses.wam
+
 examples_wast/%.wasm: examples_wast/%.wast
 	wasm-as $< -o $@
 

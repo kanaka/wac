@@ -1,0 +1,38 @@
+(module $platform_os
+
+  (import "env" "stdout" (global $lib_stdout i32))
+  (import "env" "fputs" (func $lib_fputs (param i32 i32) (result i32)))
+
+  (import "env" "fb_move_cursor" (func $fb_move_cursor (param i32 i32)))
+  (import "env" "fb_set_color" (func $fb_set_color (param i32 i32)))
+  (import "env" "fb_write" (func $fb_write (param i32)))
+  (import "env" "fb_put_xy" (func $fb_put_xy (param i32 i32 i32)))
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  (func $print (param $addr i32)
+    (drop ($lib_fputs $addr (get_global $lib_stdout))))
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  (func $main (result i32)
+    (local $i i32)
+    (set_local $i 0)
+    ;;($print "starting\n")
+    (loop $loop
+      ($fb_set_color 15 0)
+      ($fb_move_cursor 0 $i)
+      ($fb_write "--> ")
+      ($fb_set_color $i 0)
+      ;;($fb_put_xy (CHR "X") 20 $i)
+      ($fb_write "X")
+      (set_local $i (i32.add $i 1))
+      (br_if $loop (i32.lt_s $i 16))
+    )
+    (loop $loop (br $loop))
+    0
+  )
+
+  (export "_main" (func $main))
+
+)

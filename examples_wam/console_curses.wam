@@ -1,0 +1,76 @@
+(module $console_curses
+
+  (import "env" "usleep" (func $usleep (param i32) (result i32)))
+
+  ;;(import "env" "signal" (func))
+  ;;(import "env" "stdscr" (global $stdscr i32))
+  (import "env" "initscr" (func $initscr (result i32)))
+  (import "env" "endwin" (func $endwin))
+  (import "env" "cbreak" (func $cbreak))
+  (import "env" "noecho" (func $noecho))
+  (import "env" "nodelay" (func $nodelay (param i32 i32)))
+  (import "env" "keypad" (func $keypad (param i32 i32)))
+  (import "env" "refresh" (func $refresh))
+  (import "env" "clear" (func $clear))
+
+  (import "env" "init_pair" (func $init_pair (param i32 i32 i32)))
+  (import "env" "start_color" (func $start_color (param)))
+  (import "env" "COLOR_PAIR" (func $COLOR_PAIR (param i32) (result i32)))
+  (import "env" "curs_set" (func $curs_set (param i32)))
+  (import "env" "attron" (func $attron (param i32)))
+  (import "env" "attroff" (func $attroff (param i32)))
+
+  (import "env" "getch" (func $getch (result i32)))
+  (import "env" "mvaddch" (func $mvaddch (param i32 i32 i32)))
+  (import "env" "mvaddstr" (func $mvaddstr (param i32 i32 i32)))
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  (global $SNAKE_COLOR i32 1)
+
+  (func $init_console
+    (LOCALS $scr ($initscr))
+    ($clear)          ;; clear the screen
+    ($noecho)         ;; no echo of typed characters
+    ($cbreak)         ;; do not wait for newline to send chars
+    ($nodelay $scr 1) ;; return -1 instead of blocking on getch
+    ($keypad $scr 1)  ;; single code for special keys
+    ($curs_set 0)     ;; hide cursor
+    ($start_color)    ;; enable colors
+  )
+
+  (global $_color_idx (mut i32) 0)
+
+  (func $init_color (param $fg i32) (param $bg i32) (result i32)
+    (set_global $_color_idx (i32.add 1 (get_global $_color_idx)))
+    ($init_pair (get_global $_color_idx) $fg $bg)
+    (get_global $_color_idx)
+  )
+
+  (func $term_console
+    ($endwin)
+  )
+
+  (func $draw (param $str i32) (param $x i32) (param $y i32) (param $color i32)
+    ($attron ($COLOR_PAIR $color))
+    ($mvaddstr $y $x $str)
+    ($attroff ($COLOR_PAIR $color))
+  )
+
+  (func $drawch (param $ch i32) (param $x i32) (param $y i32) (param $color i32)
+    ($attron ($COLOR_PAIR $color))
+    ($mvaddch $y $x $ch)
+    ($attroff ($COLOR_PAIR $color))
+  )
+
+  (func $readch (result i32)
+    ;;($wgetch (get_global $stdscr))
+    ($getch)
+  )
+
+
+  (export "init_console" (func $init_console))
+  (export "term_console" (func $term_console))
+  (export "draw" (func $draw))
+
+)
