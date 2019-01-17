@@ -11,13 +11,13 @@
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
   (func $print (param $addr i32)
-    (drop ($lib_fputs $addr (get_global $lib_stdout))))
+    (drop ($lib_fputs $addr (global.get $lib_stdout))))
 
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
   (func $main (result i32)
     (local $i i32)
-    (set_local $i 0)
+    (local.set $i 0)
     ;;($print "starting\n")
     (loop $loop
       ($fb_set_color 15 0)
@@ -26,7 +26,7 @@
       ($fb_set_color $i 0)
       ;;($fb_put_xy (CHR "X") 20 $i)
       ($fb_write "X")
-      (set_local $i (i32.add $i 1))
+      (local.set $i (i32.add $i 1))
       (br_if $loop (i32.lt_s $i 16))
     )
     (loop $loop (br $loop))

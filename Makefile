@@ -90,19 +90,19 @@ clean::
 	rm -f *.o *.a *.d wac wace wace-sdl.c \
 	    lib/*.o lib/*.d kernel/*.o kernel/*.d \
 	    examples_c/*.js examples_c/*.html \
-	    examples_c/*.wasm examples_c/*.wast \
-	    examples_wast/*.wasm
+	    examples_c/*.wasm examples_c/*.wat \
+	    examples_wat/*.wasm
 
 ##########################################################
 
-# Wast example build rules
+# Wat example build rules
 examples_wam/%.wasm: examples_wam/%.wam
-	wamp $^ > $(subst .wasm,.wast,$@)
-	wasm-as $(subst .wasm,.wast,$@) -o $@
+	wamp $^ > $(subst .wasm,.wat,$@)
+	wasm-as $(subst .wasm,.wat,$@) -o $@
 
 examples_wam/snake.wasm: examples_wam/console_curses.wam
 
-examples_wast/%.wasm: examples_wast/%.wast
+examples_wat/%.wasm: examples_wat/%.wat
 	wasm-as $< -o $@
 
 
@@ -111,7 +111,7 @@ examples_c/%.wasm: examples_c/%.c
 	$(EMCC) -I examples_c/include -s USE_SDL=2 $< -o $@
 
 .SECONDARY:
-examples_c/%.wast: examples_c/%.wasm
+examples_c/%.wat: examples_c/%.wasm
 	wasm-dis $< -o $@
 
 examples_c/%: examples_c/%.c

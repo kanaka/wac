@@ -13,73 +13,73 @@
   (global $snake_len        (mut i32) 0)
 
   (func $get_x  (param $pos i32) (result i32)
-    (i32.load8_u offset=0 (i32.add (get_global $snake) (i32.mul_u 3 $pos))))
+    (i32.load8_u offset=0 (i32.add (global.get $snake) (i32.mul_u 3 $pos))))
   (func $get_y  (param $pos i32) (result i32)
-    (i32.load8_u offset=1 (i32.add (get_global $snake) (i32.mul_u 3 $pos))))
+    (i32.load8_u offset=1 (i32.add (global.get $snake) (i32.mul_u 3 $pos))))
   (func $get_ch (param $pos i32) (result i32)
-    (i32.load8_u offset=2 (i32.add (get_global $snake) (i32.mul_u 3 $pos))))
+    (i32.load8_u offset=2 (i32.add (global.get $snake) (i32.mul_u 3 $pos))))
   (func $set_x  (param $pos i32) (param $x i32)
-    (i32.store8_u offset=0 (i32.add (get_global $snake) (i32.mul_u 3 $pos)) $x))
+    (i32.store8_u offset=0 (i32.add (global.get $snake) (i32.mul_u 3 $pos)) $x))
   (func $set_y  (param $pos i32) (param $y i32)
-    (i32.store8_u offset=1 (i32.add (get_global $snake) (i32.mul_u 3 $pos)) $y))
+    (i32.store8_u offset=1 (i32.add (global.get $snake) (i32.mul_u 3 $pos)) $y))
   (func $set_ch (param $pos i32) (param $ch i32)
-    (i32.store8_u offset=2 (i32.add (get_global $snake) (i32.mul_u 3 $pos)) $ch))
+    (i32.store8_u offset=2 (i32.add (global.get $snake) (i32.mul_u 3 $pos)) $ch))
 
   (func $draw_snake_head (param $dir i32 $x i32 $y i32)
     (LOCALS $c 0
-            $dir (get_global $snake_dir))
-    (set_local $c (if i32 (i32.eq 0 $dir) (CHR "^")
+            $dir (global.get $snake_dir))
+    (local.set $c (if i32 (i32.eq 0 $dir) (CHR "^")
                   (else (if i32 (i32.eq 1 $dir) (CHR ">")
                   (else (if i32 (i32.eq 2 $dir) (CHR "v")
                   (else (CHR "<"))))))))
-    ($drawch $c $x $y (get_global $SNAKE_HEAD_COLOR))
+    ($drawch $c $x $y (global.get $SNAKE_HEAD_COLOR))
   )
 
   (func $draw_snake
     (LOCALS $cur 0
-            $dir (get_global $snake_dir)
+            $dir (global.get $snake_dir)
             $x 0
             $y 0
             $c 0)
     (loop $loop
-      (set_local $x ($get_x $cur))
-      (set_local $y ($get_y $cur))
-      (set_local $c ($get_ch $cur))
-      ($drawch $c $x $y (get_global $SNAKE_TAIL_COLOR))
-      (set_local $cur (i32.add 1 $cur))
-      (br_if $loop (i32.lt_u $cur (get_global $snake_len)))
+      (local.set $x ($get_x $cur))
+      (local.set $y ($get_y $cur))
+      (local.set $c ($get_ch $cur))
+      ($drawch $c $x $y (global.get $SNAKE_TAIL_COLOR))
+      (local.set $cur (i32.add 1 $cur))
+      (br_if $loop (i32.lt_u $cur (global.get $snake_len)))
     )
     ($draw_snake_head $dir $x $y)
   )
 
   (func $move_snake (param $grow i32)
-    (LOCALS $dir (get_global $snake_dir)
+    (LOCALS $dir (global.get $snake_dir)
             $x1  ($get_x 0)
             $y1  ($get_y 0)
-            $x2  ($get_x (i32.sub_u (get_global $snake_len) 1))
-            $y2  ($get_y (i32.sub_u (get_global $snake_len) 1))
+            $x2  ($get_x (i32.sub_u (global.get $snake_len) 1))
+            $y2  ($get_y (i32.sub_u (global.get $snake_len) 1))
             $dy  (if i32 (i32.eq 0 $dir) -1 (if i32 (i32.eq 2 $dir) 1 0))
             $dx  (if i32 (i32.eq 1 $dir) 1 (if i32 (i32.eq 3 $dir) -1 0))
             $c   (if i32 (i32.rem_u $dir 2) (CHR "-") (CHR "|"))
             $idx 0)
 
     ;; Add to the head (end)
-    ($set_x  (get_global $snake_len) (i32.add $x2 $dx))
-    ($set_y  (get_global $snake_len) (i32.add $y2 $dy))
-    ($set_ch (get_global $snake_len) $c)
-    (set_global $snake_len (i32.add 1 (get_global $snake_len)))
+    ($set_x  (global.get $snake_len) (i32.add $x2 $dx))
+    ($set_y  (global.get $snake_len) (i32.add $y2 $dy))
+    ($set_ch (global.get $snake_len) $c)
+    (global.set $snake_len (i32.add 1 (global.get $snake_len)))
 
     ;; Erase the tail (start) if not growing
     (if (i32.eqz $grow)
       (then
         (loop $loop
           (i32.store8_u
-            (i32.add $idx (get_global $snake))
-            (i32.load8_u (i32.add 3 (i32.add $idx (get_global $snake)))))
-          (set_local $idx (i32.add 1 $idx))
-          (br_if $loop (i32.lt_u $idx (i32.mul_u 3 (get_global $snake_len))))
+            (i32.add $idx (global.get $snake))
+            (i32.load8_u (i32.add 3 (i32.add $idx (global.get $snake)))))
+          (local.set $idx (i32.add 1 $idx))
+          (br_if $loop (i32.lt_u $idx (i32.mul_u 3 (global.get $snake_len))))
         )
-        (set_global $snake_len (i32.sub_u (get_global $snake_len) 1))))
+        (global.set $snake_len (i32.sub_u (global.get $snake_len) 1))))
 
     ($draw_snake)
   )
@@ -87,43 +87,43 @@
   (func $main
     (LOCALS $ch 0
             $pos 0
-            $prev_dir (get_global $snake_dir)
+            $prev_dir (global.get $snake_dir)
             $tick 0)
-    (set_global $snake_dir   1)
-    (set_global $snake       (STATIC_ARRAY 300))
-    (set_global $snake_len   0)
+    (global.set $snake_dir   1)
+    (global.set $snake       (STATIC_ARRAY 300))
+    (global.set $snake_len   0)
 
-    (i32.store8_u offset=0  (get_global $snake) 9)
-    (i32.store8_u offset=1  (get_global $snake) 10)
-    (i32.store8_u offset=2  (get_global $snake) (CHR "-"))
-    (i32.store8_u offset=3  (get_global $snake) 10)
-    (i32.store8_u offset=4  (get_global $snake) 10)
-    (i32.store8_u offset=5  (get_global $snake) (CHR "-"))
-    (set_global $snake_len 2)
+    (i32.store8_u offset=0  (global.get $snake) 9)
+    (i32.store8_u offset=1  (global.get $snake) 10)
+    (i32.store8_u offset=2  (global.get $snake) (CHR "-"))
+    (i32.store8_u offset=3  (global.get $snake) 10)
+    (i32.store8_u offset=4  (global.get $snake) 10)
+    (i32.store8_u offset=5  (global.get $snake) (CHR "-"))
+    (global.set $snake_len 2)
 
     ($init_console)
-    (set_global $EMPTY_COLOR ($init_color 0 0))      ;; black on black
-    (set_global $SNAKE_TAIL_COLOR ($init_color 2 0)) ;; green on black
-    (set_global $SNAKE_HEAD_COLOR ($init_color 2 0)) ;; green on black
+    (global.set $EMPTY_COLOR ($init_color 0 0))      ;; black on black
+    (global.set $SNAKE_TAIL_COLOR ($init_color 2 0)) ;; green on black
+    (global.set $SNAKE_HEAD_COLOR ($init_color 2 0)) ;; green on black
     ($draw_snake)
     (loop $loop
-      (set_local $pos (i32.sub_s (get_global $snake_len) 1))
-      (set_local $tick (i32.add $tick 1))
+      (local.set $pos (i32.sub_s (global.get $snake_len) 1))
+      (local.set $tick (i32.add $tick 1))
       (drop ($usleep 100000))
       (if (i32.eqz (i32.rem_u $tick 10))
         (then
-          (if (i32.ne $prev_dir (get_global $snake_dir))
+          (if (i32.ne $prev_dir (global.get $snake_dir))
             ($set_ch $pos (CHR "+")))
           ($move_snake 0)
-          (set_local $prev_dir (get_global $snake_dir))))
+          (local.set $prev_dir (global.get $snake_dir))))
 
-      (set_local $ch ($readch))
+      (local.set $ch ($readch))
       (if (i32.eq -1 $ch) (br $loop))
-      (if (i32.eq $ch 259) (set_global $snake_dir 0)) ;; up arrow
-      (if (i32.eq $ch 258) (set_global $snake_dir 2)) ;; down arrow
-      (if (i32.eq $ch 260) (set_global $snake_dir 3)) ;; left arrow
-      (if (i32.eq $ch 261) (set_global $snake_dir 1)) ;; right arrow
-      ($draw_snake_head (get_global $snake_dir) ($get_x $pos) ($get_y $pos))
+      (if (i32.eq $ch 259) (global.set $snake_dir 0)) ;; up arrow
+      (if (i32.eq $ch 258) (global.set $snake_dir 2)) ;; down arrow
+      (if (i32.eq $ch 260) (global.set $snake_dir 3)) ;; left arrow
+      (if (i32.eq $ch 261) (global.set $snake_dir 1)) ;; right arrow
+      ($draw_snake_head (global.get $snake_dir) ($get_x $pos) ($get_y $pos))
       (br_if $loop (i32.ne $ch (CHR "q")))
     )
     ($term_console)

@@ -7,9 +7,8 @@ wace
 *.syms.c
 examples_c/*.js
 examples_c/*.html
-examples_c/*.wasm
-examples_c/*.wast
-examples_wast/*.wasm
+*/*.wasm
+*/*.wat
 spec/
 wabt/
 

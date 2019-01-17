@@ -137,9 +137,9 @@ def assert_prompt(runner, prompts, timeout):
 
 parser = argparse.ArgumentParser(
         description="Run a test file against a WebAssembly interpreter")
-parser.add_argument('--wast2wasm', type=str,
-        default=os.environ.get("WAST2WASM", "wast2wasm"),
-        help="Path to wast2wasm program")
+parser.add_argument('--wat2wasm', type=str,
+        default=os.environ.get("WAT2WASM", "wat2wasm"),
+        help="Path to wat2wasm program")
 parser.add_argument('--interpreter', type=str,
         default=os.environ.get("WA_CMD", "./wac"),
         help="Path to WebAssembly interpreter")
@@ -497,7 +497,7 @@ if __name__ == "__main__":
 
     for form in forms:
         try:
-            (t1fd, wast_tempfile) = tempfile.mkstemp(suffix=".wast")
+            (t1fd, wat_tempfile) = tempfile.mkstemp(suffix=".wat")
             (t2fd, wasm_tempfile) = tempfile.mkstemp(suffix=".wasm")
             os.close(t1fd)
             os.close(t2fd)
@@ -522,12 +522,12 @@ if __name__ == "__main__":
                 log("ignoring invoke $FOO")
 
             elif re.match("^\(module\\b.*", form):
-                log("Writing WAST module to '%s'" % wast_tempfile)
-                file(wast_tempfile, 'w').write(form)
+                log("Writing WAT module to '%s'" % wat_tempfile)
+                file(wat_tempfile, 'w').write(form)
                 log("Compiling WASM to '%s'" % wasm_tempfile)
-                cmd = [ opts.wast2wasm,
+                cmd = [ opts.wat2wasm,
                         "--no-check",
-                        wast_tempfile,
+                        wat_tempfile,
                         "-o",
                         wasm_tempfile ]
                 log("Running: %s" % " ".join(cmd))
@@ -567,10 +567,10 @@ if __name__ == "__main__":
             if not opts.no_cleanup:
                 if opts.verbose:
                     log("Removing tempfiles: %s" % (
-                        [wast_tempfile, wasm_tempfile]))
-                os.remove(wast_tempfile)
+                        [wat_tempfile, wasm_tempfile]))
+                os.remove(wat_tempfile)
                 os.remove(wasm_tempfile)
             else:
                 if opts.verbose:
                     log("Leaving tempfiles: %s" % (
-                        [wast_tempfile, wasm_tempfile]))
+                        [wat_tempfile, wasm_tempfile]))

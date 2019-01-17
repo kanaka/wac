@@ -52,11 +52,11 @@ char OPERATOR_INFO[][20] = {
     "RESERVED",              // 0x1f
 
     // Variable access
-    "get_local",             // 0x20
-    "set_local",             // 0x21
-    "tee_local",             // 0x22
-    "get_global",            // 0x23
-    "set_global",            // 0x24
+    "local.get",             // 0x20
+    "local.set",             // 0x21
+    "local.tee",             // 0x22
+    "global.get",            // 0x23
+    "global.set",            // 0x24
 
     "RESERVED",              // 0x25
     "RESERVED",              // 0x26
@@ -204,36 +204,36 @@ char OPERATOR_INFO[][20] = {
     "f64.copysign",          // 0xa6
 
     // Conversions
-    "i32.wrap/i64",          // 0xa7
-    "i32.trunc_s/f32",       // 0xa8
-    "i32.trunc_u/f32",       // 0xa9
-    "i32.trunc_s/f64",       // 0xaa
-    "i32.trunc_u/f64",       // 0xab
+    "i32.wrap_i64",          // 0xa7
+    "i32.trunc_f32_s",       // 0xa8
+    "i32.trunc_f32_u",       // 0xa9
+    "i32.trunc_f64_s",       // 0xaa
+    "i32.trunc_f64_u",       // 0xab
 
-    "i64.extend_s/i32",      // 0xac
-    "i64.extend_u/i32",      // 0xad
-    "i64.trunc_s/f32",       // 0xae
-    "i64.trunc_u/f32",       // 0xaf
-    "i64.trunc_s/f64",       // 0xb0
-    "i64.trunc_u/f64",       // 0xb1
+    "i64.extend_i32_s",      // 0xac
+    "i64.extend_i32_u",      // 0xad
+    "i64.trunc_f32_s",       // 0xae
+    "i64.trunc_f32_u",       // 0xaf
+    "i64.trunc_f64_s",       // 0xb0
+    "i64.trunc_f64_u",       // 0xb1
 
-    "f32.convert_s/i32",     // 0xb2
-    "f32.convert_u/i32",     // 0xb3
-    "f32.convert_s/i64",     // 0xb4
-    "f32.convert_u/i64",     // 0xb5
-    "f32.demote/f64",        // 0xb6
+    "f32.convert_i32_s",     // 0xb2
+    "f32.convert_i32_u",     // 0xb3
+    "f32.convert_i64_s",     // 0xb4
+    "f32.convert_i64_u",     // 0xb5
+    "f32.demote_f64",        // 0xb6
 
-    "f64.convert_s/i32",     // 0xb7
-    "f64.convert_u/i32",     // 0xb8
-    "f64.convert_s/i64",     // 0xb9
-    "f64.convert_u/i64",     // 0xba
-    "f64.promote/f32",       // 0xbb
+    "f64.convert_i32_s",     // 0xb7
+    "f64.convert_i32_u",     // 0xb8
+    "f64.convert_i64_s",     // 0xb9
+    "f64.convert_i64_u",     // 0xba
+    "f64.promote_f32",       // 0xbb
 
     // Reinterpretations
-    "i32.reinterpret/f32",   // 0xbc
-    "i64.reinterpret/f64",   // 0xbd
-    "f32.reinterpret/i32",   // 0xbe
-    "f64.reinterpret/i64"    // 0xbf
+    "i32.reinterpret_f32",   // 0xbc
+    "i64.reinterpret_f64",   // 0xbd
+    "f32.reinterpret_i32",   // 0xbe
+    "f64.reinterpret_i64"    // 0xbf
 };
 
 // Size of memory load.
@@ -374,7 +374,7 @@ void skip_immediates(uint8_t *bytes, uint32_t *pos) {
     // varuint32, varint32
     case 0x0c ... 0x0d:    // br, br_if
     case 0x10:            // call
-    case 0x20 ... 0x24:    // get/set_local, tee_local, get/set_global
+    case 0x20 ... 0x24:    // get/local.set, local.tee, get/global.set
     case 0x41:            // i32.const
         read_LEB(bytes, pos, 32); break;
     // varuint32 + varuint1
@@ -823,7 +823,7 @@ bool interpret(Module *m) {
         //
         // Variable access
         //
-        case 0x20:  // get_local
+        case 0x20:  // local.get
             arg = read_LEB(bytes, &m->pc, 32);
             if (TRACE) {
                 debug("      - arg: 0x%x, got %s\n",
@@ -831,7 +831,7 @@ bool interpret(Module *m) {
             }
             stack[++m->sp] = stack[m->fp+arg];
             continue;
-        case 0x21:  // set_local
+        case 0x21:  // local.set
             arg = read_LEB(bytes, &m->pc, 32);
             stack[m->fp+arg] = stack[m->sp--];
             if (TRACE) {
@@ -839,7 +839,7 @@ bool interpret(Module *m) {
                        arg, value_repr(&stack[m->sp]));
             }
             continue;
-        case 0x22:  // tee_local
+        case 0x22:  // local.tee
             arg = read_LEB(bytes, &m->pc, 32);
             stack[m->fp+arg] = stack[m->sp];
             if (TRACE) {
@@ -847,7 +847,7 @@ bool interpret(Module *m) {
                        arg, value_repr(&stack[m->sp]));
             }
             continue;
-        case 0x23:  // get_global
+        case 0x23:  // global.get
             arg = read_LEB(bytes, &m->pc, 32);
             if (TRACE) {
                 debug("      - arg: 0x%x, got %s\n",
@@ -855,7 +855,7 @@ bool interpret(Module *m) {
             }
             stack[++m->sp] = m->globals[arg];
             continue;
-        case 0x24:  // set_global
+        case 0x24:  // global.set
             arg = read_LEB(bytes, &m->pc, 32);
             m->globals[arg] = stack[m->sp--];
             if (TRACE) {
@@ -1281,7 +1281,7 @@ bool interpret(Module *m) {
         // conversion operations
         //case 0xa7 ... 0xbb:
         case 0xa7: stack[m->sp].value.uint64 &= 0x00000000ffffffff;
-                   stack[m->sp].value_type = I32; break;  // i32.wrap/i64
+                   stack[m->sp].value_type = I32; break;  // i32.wrap_i64
         case 0xa8: if (isnan(stack[m->sp].value.f32)) {
                        sprintf(exception, "invalid conversion to integer");
                        return false;
@@ -1291,7 +1291,7 @@ bool interpret(Module *m) {
                        return false;
                    }
                    stack[m->sp].value.int32 = stack[m->sp].value.f32;
-                   stack[m->sp].value_type = I32; break;  // i32.trunc_s/f32
+                   stack[m->sp].value_type = I32; break;  // i32.trunc_f32_s
         case 0xa9: if (isnan(stack[m->sp].value.f32)) {
                        sprintf(exception, "invalid conversion to integer");
                        return false;
@@ -1301,7 +1301,7 @@ bool interpret(Module *m) {
                        return false;
                    }
                    stack[m->sp].value.uint32 = stack[m->sp].value.f32;
-                   stack[m->sp].value_type = I32; break;  // i32.trunc_u/f32
+                   stack[m->sp].value_type = I32; break;  // i32.trunc_f32_u
         case 0xaa: if (isnan(stack[m->sp].value.f64)) {
                        sprintf(exception, "invalid conversion to integer");
                        return false;
@@ -1311,7 +1311,7 @@ bool interpret(Module *m) {
                        return false;
                    }
                    stack[m->sp].value.int32 = stack[m->sp].value.f64;
-                   stack[m->sp].value_type = I32; break;  // i32.trunc_s/f64
+                   stack[m->sp].value_type = I32; break;  // i32.trunc_f64_s
         case 0xab: if (isnan(stack[m->sp].value.f64)) {
                        sprintf(exception, "invalid conversion to integer");
                        return false;
@@ -1321,12 +1321,12 @@ bool interpret(Module *m) {
                        return false;
                    }
                    stack[m->sp].value.uint32 = stack[m->sp].value.f64;
-                   stack[m->sp].value_type = I32; break;  // i32.trunc_u/f64
+                   stack[m->sp].value_type = I32; break;  // i32.trunc_f64_u
         case 0xac: stack[m->sp].value.uint64 = stack[m->sp].value.uint32;
                    sext_32_64(&stack[m->sp].value.uint64);
-                   stack[m->sp].value_type = I64; break;  // i64.extend_s/i32
+                   stack[m->sp].value_type = I64; break;  // i64.extend_i32_s
         case 0xad: stack[m->sp].value.uint64 = stack[m->sp].value.uint32;
-                   stack[m->sp].value_type = I64; break;  // i64.extend_u/i32
+                   stack[m->sp].value_type = I64; break;  // i64.extend_i32_u
         case 0xae: if (isnan(stack[m->sp].value.f32)) {
                        sprintf(exception, "invalid conversion to integer");
                        return false;
@@ -1336,7 +1336,7 @@ bool interpret(Module *m) {
                        return false;
                    }
                    stack[m->sp].value.int64 = stack[m->sp].value.f32;
-                   stack[m->sp].value_type = I64; break;  // i64.trunc_s/f32
+                   stack[m->sp].value_type = I64; break;  // i64.trunc_f32_s
         case 0xaf: if (isnan(stack[m->sp].value.f32)) {
                        sprintf(exception, "invalid conversion to integer");
                        return false;
@@ -1346,7 +1346,7 @@ bool interpret(Module *m) {
                        return false;
                    }
                    stack[m->sp].value.uint64 = stack[m->sp].value.f32;
-                   stack[m->sp].value_type = I64; break;  // i64.trunc_u/f32
+                   stack[m->sp].value_type = I64; break;  // i64.trunc_f32_u
         case 0xb0: if (isnan(stack[m->sp].value.f64)) {
                        sprintf(exception, "invalid conversion to integer");
                        return false;
@@ -1356,7 +1356,7 @@ bool interpret(Module *m) {
                        return false;
                    }
                    stack[m->sp].value.int64 = stack[m->sp].value.f64;
-                   stack[m->sp].value_type = I64; break;  // i64.trunc_s/f64
+                   stack[m->sp].value_type = I64; break;  // i64.trunc_f64_s
         case 0xb1: if (isnan(stack[m->sp].value.f64)) {
                        sprintf(exception, "invalid conversion to integer");
                        return false;
@@ -1366,34 +1366,34 @@ bool interpret(Module *m) {
                        return false;
                    }
                    stack[m->sp].value.uint64 = stack[m->sp].value.f64;
-                   stack[m->sp].value_type = I64; break;  // i64.trunc_u/f64
+                   stack[m->sp].value_type = I64; break;  // i64.trunc_f64_u
         case 0xb2: stack[m->sp].value.f32 = stack[m->sp].value.int32;
-                   stack[m->sp].value_type = F32; break;  // f32.convert_s/i32
+                   stack[m->sp].value_type = F32; break;  // f32.convert_i32_s
         case 0xb3: stack[m->sp].value.f32 = stack[m->sp].value.uint32;
-                   stack[m->sp].value_type = F32; break;  // f32.convert_u/i32
+                   stack[m->sp].value_type = F32; break;  // f32.convert_i32_u
         case 0xb4: stack[m->sp].value.f32 = stack[m->sp].value.int64;
-                   stack[m->sp].value_type = F32; break;  // f32.convert_s/i64
+                   stack[m->sp].value_type = F32; break;  // f32.convert_i64_s
         case 0xb5: stack[m->sp].value.f32 = stack[m->sp].value.uint64;
-                   stack[m->sp].value_type = F32; break;  // f32.convert_u/i64
+                   stack[m->sp].value_type = F32; break;  // f32.convert_i64_u
         case 0xb6: stack[m->sp].value.f32 = stack[m->sp].value.f64;
-                   stack[m->sp].value_type = F32; break;  // f32.demote/f64
+                   stack[m->sp].value_type = F32; break;  // f32.demote_f64
         case 0xb7: stack[m->sp].value.f64 = stack[m->sp].value.int32;
-                   stack[m->sp].value_type = F64; break;  // f64.convert_s/i32
+                   stack[m->sp].value_type = F64; break;  // f64.convert_i32_s
         case 0xb8: stack[m->sp].value.f64 = stack[m->sp].value.uint32;
-                   stack[m->sp].value_type = F64; break;  // f64.convert_u/i32
+                   stack[m->sp].value_type = F64; break;  // f64.convert_i32_u
         case 0xb9: stack[m->sp].value.f64 = stack[m->sp].value.int64;
-                   stack[m->sp].value_type = F64; break;  // f64.convert_s/i64
+                   stack[m->sp].value_type = F64; break;  // f64.convert_i64_s
         case 0xba: stack[m->sp].value.f64 = stack[m->sp].value.uint64;
-                   stack[m->sp].value_type = F64; break;  // f64.convert_u/i64
+                   stack[m->sp].value_type = F64; break;  // f64.convert_i64_u
         case 0xbb: stack[m->sp].value.f64 = stack[m->sp].value.f32;
-                   stack[m->sp].value_type = F64; break;  // f64.promote/f32
+                   stack[m->sp].value_type = F64; break;  // f64.promote_f32
 
         // reinterpretations
-        case 0xbc: stack[m->sp].value_type = I32; break;  // i32.reinterpret/f32
-        case 0xbd: stack[m->sp].value_type = I64; break;  // i64.reinterpret/f64
+        case 0xbc: stack[m->sp].value_type = I32; break;  // i32.reinterpret_f32
+        case 0xbd: stack[m->sp].value_type = I64; break;  // i64.reinterpret_f64
         case 0xbe: //memmove(&stack[m->sp].value.f32, &stack[m->sp].value.uint32, 4);
-                   stack[m->sp].value_type = F32; break;  // f32.reinterpret/i32
-        case 0xbf: stack[m->sp].value_type = F64; break;  // f64.reinterpret/i64
+                   stack[m->sp].value_type = F32; break;  // f32.reinterpret_i32
+        case 0xbf: stack[m->sp].value_type = F64; break;  // f64.reinterpret_i64
 
         default:
             sprintf(exception, "unrecognized opcode 0x%x", opcode);

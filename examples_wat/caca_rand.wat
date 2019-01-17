@@ -3,5 +3,5 @@
     (func $caca_rand (param i32 i32) (result i32)))
   (func $doRand (param i32 i32) (result i32)
     (call $caca_rand
-      (get_local 0) (get_local 1)))
+      (local.get 0) (local.get 1)))
   (export "rand" (func $doRand)))

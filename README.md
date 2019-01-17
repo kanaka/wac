@@ -8,7 +8,7 @@ There are two different builds of wac:
 
 * **wac**: (WebAssembly in C) Minimal client with an interactive REPL
   mode. Designed to run standalone wasm files compiled with
-  `wast2wasm` or `wasm-as`. Passes most spec tests apart from some
+  `wat2wasm` or `wasm-as`. Passes most spec tests apart from some
   multi-module import/export tests.
 * **wace**: (WebAssembly in C with Emscripten) Client with host
   library/memory integration. Designed to run wasm code that has been
@@ -26,7 +26,7 @@ apt-get update
 apt-get install lib32gcc-4.9-dev libSDL2-dev:i386 libedit-dev:i386
 ```
 
-To compile wast source files to binary wasm modules you will need the
+To compile wat source files to binary wasm modules you will need the
 wasm-as tool from [Binaryen](https://github.com/WebAssembly/binaryen).
 To compile C programs to wasm modules you will need a [patched version
 of emscripten](https://github.com/kanaka/emscripten), the [incoming
@@ -54,18 +54,18 @@ Build wac:
 $ make wac
 ```
 
-Use `wasm-as` to compile a simple wast program to a wasm:
+Use `wasm-as` to compile a simple wat program to a wasm:
 
 ```bash
-$ make examples_wast/arith.wasm
+$ make examples_wat/arith.wasm
 ```
 
 Now load the compiled wasm file and invoke some functions:
 
 ```bash
-$./wac examples_wast/arith.wasm add 2 3
+$./wac examples_wat/arith.wasm add 2 3
 0x5:i32
-$./wac examples_wast/arith.wasm mul 7 8
+$./wac examples_wat/arith.wasm mul 7 8
 0x38:i32
 ```
 
@@ -73,7 +73,7 @@ wac also supports a very simple REPL (read-eval-print-loop) mode that
 runs commands in the form of `FUNC ARG...`:
 
 ```
-$ ./wac --repl examples_wast/arith.wasm
+$ ./wac --repl examples_wat/arith.wasm
 > sub 10 5
 0x5:i32
 > div 13 4
@@ -132,7 +132,7 @@ Check out the spec:
 git clone https://github.com/WebAssembly/spec
 ```
 
-You will need `wast2wasm` to compile the spec tests. Check-out and
+You will need `wat2wasm` to compile the spec tests. Check-out and
 build [wabt](https://github.com/WebAssembly/wabt) (wabbit):
 
 ```
@@ -143,7 +143,7 @@ make -C wabt gcc-release
 Run the `func.wast` test file (to test function calls) from the spec:
 
 ```
-./runtest.py --wast2wasm ./wabt/out/gcc/Release/wast2wasm --interpreter ./wac spec/test/core/func.wast
+./runtest.py --wat2wasm ./wabt/out/gcc/Release/wat2wasm --interpreter ./wac spec/test/core/func.wast
 ```
 
 Run all the spec tests apart from a few that currently fail (mostly due to
@@ -167,7 +167,7 @@ using [fooboot](https://github.com/kanaka/fooboot):
 cd wac
 git clone https://github.com/kanaka/fooboot
 make PLATFORM=fooboot clean
-make PLATFORM=fooboot wac wace examples_wast/addTwo.wasm
+make PLATFORM=fooboot wac wace examples_wat/addTwo.wasm
 ```
 
 The `fooboot/runfoo` script can be used to boot wac/wace with QEMU.
@@ -175,7 +175,7 @@ The `fooboot/runfoo` script can be used to boot wac/wace with QEMU.
 that allows files to be read from the host system:
 
 ```
-fooboot/runfoo wac --repl examples_wast/addTwo.wasm
+fooboot/runfoo wac --repl examples_wat/addTwo.wasm
 QEMU waiting for connection on: disconnected:tcp:localhost:21118,server
 webassembly> addTwo 2 3
 0x5:i32
@@ -189,10 +189,10 @@ built into the binary to become part of a simple in-memory
 file-system:
 
 ```
-echo "examples_wast/addTwo.wasm" > mem_fs_files
+echo "examples_wat/addTwo.wasm" > mem_fs_files
 make PLATFORM=fooboot \
      FOO_TARGETS="wac" \
-     FOO_CMDLINE="examples_wast/addTwo.wasm addTwo 3 4" \
+     FOO_CMDLINE="examples_wat/addTwo.wasm addTwo 3 4" \
      boot.iso
 ```
 

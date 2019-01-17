@@ -42,9 +42,9 @@
   (global $_color_idx (mut i32) 0)
 
   (func $init_color (param $fg i32) (param $bg i32) (result i32)
-    (set_global $_color_idx (i32.add 1 (get_global $_color_idx)))
-    ($init_pair (get_global $_color_idx) $fg $bg)
-    (get_global $_color_idx)
+    (global.set $_color_idx (i32.add 1 (global.get $_color_idx)))
+    ($init_pair (global.get $_color_idx) $fg $bg)
+    (global.get $_color_idx)
   )
 
   (func $term_console
@@ -64,7 +64,7 @@
   )
 
   (func $readch (result i32)
-    ;;($wgetch (get_global $stdscr))
+    ;;($wgetch (global.get $stdscr))
     ($getch)
   )
 
