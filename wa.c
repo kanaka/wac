@@ -694,6 +694,7 @@ bool interpret(Module *m) {
                 m->br_table[i] = read_LEB(bytes, &m->pc, 32);
             }
             depth = read_LEB(bytes, &m->pc, 32);
+            // TODO: check that depth is within table
 
             int32_t didx = stack[m->sp--].value.int32;
             if (didx >= 0 && didx < (int32_t)count) {

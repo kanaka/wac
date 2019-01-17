@@ -23,6 +23,8 @@ void usage(char *prog) {
 //
 // Imports used by specification tests
 //
+
+// https://github.com/WebAssembly/spec/blob/master/interpreter/host/spectest.ml
 #define PAGE_COUNT   1
 #define TABLE_COUNT  20
 Memory _spectest__memory_ = {PAGE_COUNT, PAGE_COUNT, PAGE_COUNT, NULL};
