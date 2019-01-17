@@ -39,12 +39,14 @@ void *arecalloc(void *ptr, size_t old_nmemb, size_t nmemb,
 // open and mmap a file
 uint8_t *mmap_file(char *path, int *len) {
     int          fd;
+    int          res;
     struct stat  sb;
     uint8_t     *bytes;
 
     fd = open(path, O_RDONLY);
     if (fd < 0) { FATAL("could not open file '%s'\n", path); }
-    if (fstat(fd, &sb) < 0) { FATAL("could stat file '%s'\n", path); }
+    res = fstat(fd, &sb);
+    if (res < 0) { FATAL("could not stat file '%s' (%d)\n", path, res); }
 
     bytes = mmap(0, sb.st_size, PROT_READ, MAP_SHARED, fd, 0);
     if (len) {
