@@ -20,7 +20,7 @@ extern uint8_t  *memoryBase;
 void *acalloc(size_t nmemb, size_t size,  char *name) {
     void *res = calloc(nmemb, size);
     if (res == NULL) {
-        FATAL("Could not allocate %d bytes for %s", (int)nmemb * size, name);
+        FATAL("Could not allocate %d bytes for %s", (int)(nmemb * size), name);
     }
     //printf("<<< acalloc res: %p\n", res);
     return res;
@@ -31,7 +31,7 @@ void *arecalloc(void *ptr, size_t old_nmemb, size_t nmemb,
                 size_t size,  char *name) {
     void *res = calloc(nmemb, size);
     if (res == NULL) {
-        FATAL("Could not allocate %d bytes for %s", (int)nmemb * size, name);
+        FATAL("Could not allocate %d bytes for %s", (int)(nmemb * size), name);
     }
     memmove(res, ptr, old_nmemb * size);
     // Initialize new memory
