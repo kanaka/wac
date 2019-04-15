@@ -50,6 +50,10 @@ bool readline(const char *prompt, char *buf, int cnt) {
     return readline_buf(prompt, buf, cnt);
 }
 
+int printline(const char *s) {
+    return fputs(s, stdout);
+}
+
 
 void add_history(char *line) {
     return;
