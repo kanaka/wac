@@ -27,20 +27,17 @@ apt-get install lib32gcc-4.9-dev libSDL2-dev:i386 libedit-dev:i386
 ```
 
 To compile wat source files to binary wasm modules you will need the
-wasm-as tool from [Binaryen](https://github.com/WebAssembly/binaryen).
-To compile C programs to wasm modules you will need a [patched version
-of emscripten](https://github.com/kanaka/emscripten), the [incoming
-branch of fastcomp](https://github.com/kripken/emscripten-fastcomp)
-and the [master branch of
-binaryen](https://github.com/WebAssembly/binaryen).
+`wasm-as` program from [Binaryen](https://github.com/WebAssembly/binaryen).
+To compile C programs to wasm modules you will need Binaryen and
+[emscripten](https://github.com/kanaka/emscripten).
 
 As an alternative to downloading and building the above tools, the
-`kanaka/emscripten` docker image (1.7GB) has 32-bit gcc
-compiler/libraries, patched emscripten, and binaryen preinstalled. The
-docker image can be started with appropriate file mounts like this:
+`kanaka/wac` docker image (1.7GB) has 32-bit gcc compiler/libraries,
+emscripten, and binaryen preinstalled. The docker image can be started
+with appropriate file mounts like this:
 
 ```
-docker run -v `pwd`:/wac -w /wac -it kanaka/emscripten bash
+docker run -v `pwd`:/wac -w /wac -it kanaka/wac bash
 ```
 
 All the build commands below can be run within the docker container.
@@ -115,10 +112,6 @@ Done.
 $ make examples_c/triangle.wasm
 $ ./wace examples_c/triangle.wasm
 # A colorfully shaded triangle is rendered
-
-$ make examples_c/hello_owl/hello_owl.wasm
-$ ./wace examples_c/hello_owl/hello_owl.wasm
-# An Owl image displayed for 2 seconds
 ```
 
 ## Running WebAssembly spec tests
