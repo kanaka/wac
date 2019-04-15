@@ -10,6 +10,7 @@
 #include <vfs.h>
 #include <sym_table.h>
 
+#include "readline_buf.h"
 #include "util.h"
 
 extern uint8_t  *memory;
@@ -46,36 +47,9 @@ void *arecalloc(void *ptr, size_t old_nmemb, size_t nmemb,
 
 // Returns true if line successfully read into buf, false for EOF
 bool readline(const char *prompt, char *buf, int cnt) {
-    //printf(">>> _readline prompt: '%s' (%p), buf: %p\n", prompt, prompt, buf);
-    char c;
-    int idx = 0;
-    console_write(prompt);
-    while (idx < cnt) {
-        c = console_getc();
-        if (c == 0x4) {
-            if (idx == 0) return false;
-            continue;
-        }
-        // Backspace (0x08 from FB console, 0x7f from serial console)
-        if (c == 0x08 || c == 0x7f) {
-            if (idx > 0) {
-                idx--;
-                console_putc(0x08);
-                console_putc(' ');
-                console_putc(0x08);
-            }
-            continue;
-        }
-        console_putc(c);
-        if (c == '\n') {
-            break;
-        }
-        buf[idx++] = c;
-    };
-    buf[idx] = '\0';
-    //printf("<<< _readline buf: '%s' (%p)\n", buf, buf);
-    return true;
+    return readline_buf(prompt, buf, cnt);
 }
+
 
 void add_history(char *line) {
     return;
