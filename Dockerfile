@@ -38,5 +38,5 @@ RUN apt-get -y install python3 nasm xorriso grub-common grub-pc-bin
 # TODO: combine with top install
 RUN apt-get -y install freeglut3-dev:i386
 
-RUN git clone https://github.com/kanaka/wam/ && \
-    cp wam/wamp /usr/bin/
+RUN npm install -g @kanaka/wamp@1.0.7
+ENV PATH $PATH:/emsdk_portable/node/bin

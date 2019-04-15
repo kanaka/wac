@@ -96,15 +96,16 @@ clean::
 ##########################################################
 
 # Wat example build rules
-examples_wam/%.wasm: examples_wam/%.wam
+examples_wam/%.wasm: examples_wam/printnum.wam examples_wam/%.wam
 	wamp $^ > $(subst .wasm,.wat,$@)
 	wasm-as $(subst .wasm,.wat,$@) -o $@
 
+examples_wam/hello.wasm: examples_wam/console_curses.wam
+examples_wam/colors.wasm: examples_wam/console_curses.wam
 examples_wam/snake.wasm: examples_wam/console_curses.wam
 
 examples_wat/%.wasm: examples_wat/%.wat
 	wasm-as $< -o $@
-
 
 # General C example build rules
 examples_c/%.wasm: examples_c/%.c

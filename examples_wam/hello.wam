@@ -1,0 +1,19 @@
+(module $colors
+
+  (import "env" "memory" (memory 256))
+  (import "env" "memoryBase" (global $memoryBase i32))
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  (func $main
+    ($init_console)
+    ($draw "hello world" 10 10 1)
+    ($draw "'q' to quit" 10 12 2)
+    (loop $loop
+      (br_if $loop (i32.ne (global.get $KEY_Q) ($readch))))
+    ($term_console)
+  )
+
+  (export "_main" (func $main))
+
+)

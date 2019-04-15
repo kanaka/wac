@@ -23,13 +23,30 @@
   (import "env" "getch" (func $getch (result i32)))
   (import "env" "mvaddch" (func $mvaddch (param i32 i32 i32)))
   (import "env" "mvaddstr" (func $mvaddstr (param i32 i32 i32)))
+  (import "env" "addstr" (func $addstr (param i32)))
 
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-  (global $SNAKE_COLOR i32 1)
+  (global $COLOR_RED      i32 1)
+  (global $COLOR_GREEN    i32 2)
+  (global $COLOR_BROWN    i32 3)
+  (global $COLOR_BLUE     i32 4)
+  (global $COLOR_MAGENTA  i32 5)
+  (global $COLOR_CYAN     i32 6)
+  (global $COLOR_LGREY    i32 7)
+
+  (global $KEY_Q          i32 (CHR "q"))
+  (global $KEY_UP         i32 259)
+  (global $KEY_DOWN       i32 258)
+  (global $KEY_LEFT       i32 260)
+  (global $KEY_RIGHT      i32 261)
+
+  (func $init_color (param $idx i32 $fg i32 $bg i32)
+    ($init_pair $idx $fg $bg)
+  )
 
   (func $init_console
-    (LOCALS $scr ($initscr))
+    (LET $scr ($initscr) $i 1)
     ($clear)          ;; clear the screen
     ($noecho)         ;; no echo of typed characters
     ($cbreak)         ;; do not wait for newline to send chars
@@ -37,18 +54,22 @@
     ($keypad $scr 1)  ;; single code for special keys
     ($curs_set 0)     ;; hide cursor
     ($start_color)    ;; enable colors
-  )
 
-  (global $_color_idx (mut i32) 0)
-
-  (func $init_color (param $fg i32) (param $bg i32) (result i32)
-    (global.set $_color_idx (i32.add 1 (global.get $_color_idx)))
-    ($init_pair (global.get $_color_idx) $fg $bg)
-    (global.get $_color_idx)
+    ;; Initialize first 15 colors
+    (loop $loop
+      ($init_color $i $i 0)
+      (local.set $i (i32.add 1 $i))
+      (br_if $loop (i32.lt_s $i 16))
+    )
   )
 
   (func $term_console
     ($endwin)
+  )
+
+
+  (func $print (param $str i32)
+    ($addstr $str)
   )
 
   (func $draw (param $str i32) (param $x i32) (param $y i32) (param $color i32)
@@ -64,13 +85,13 @@
   )
 
   (func $readch (result i32)
-    ;;($wgetch (global.get $stdscr))
     ($getch)
   )
 
-
   (export "init_console" (func $init_console))
   (export "term_console" (func $term_console))
-  (export "draw" (func $draw))
-
+  (export "print"        (func $print))
+  (export "draw"         (func $draw))
+  (export "drawch"       (func $drawch))
+  (export "readch"       (func $readch))
 )

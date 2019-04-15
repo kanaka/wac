@@ -6,17 +6,12 @@
 
 int main()
 {
-    char prompt[100];
-
-    // Set the initial prompt
-    snprintf(prompt, sizeof(prompt), "echo> ");
- 
     for(;;) {
         char *line;
-        line = readline(prompt);
+        line = readline("echo> ");
         if (!line) return 0; // EOF
         add_history(line); // Add input to history.
 
-        printf("line: '%s'\n", line);
+        printf("%s\n", line);
     }
 }

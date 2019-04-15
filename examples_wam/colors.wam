@@ -1,36 +1,27 @@
-(module $platform_os
+(module $colors
 
-  (import "env" "stdout" (global $lib_stdout i32))
-  (import "env" "fputs" (func $lib_fputs (param i32 i32) (result i32)))
-
-  (import "env" "fb_move_cursor" (func $fb_move_cursor (param i32 i32)))
-  (import "env" "fb_set_color" (func $fb_set_color (param i32 i32)))
-  (import "env" "fb_write" (func $fb_write (param i32)))
-  (import "env" "fb_put_xy" (func $fb_put_xy (param i32 i32 i32)))
+  (import "env" "memory" (memory 256))
+  (import "env" "memoryBase" (global $memoryBase i32))
 
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-  (func $print (param $addr i32)
-    (drop ($lib_fputs $addr (global.get $lib_stdout))))
-
-  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-  (func $main (result i32)
-    (local $i i32)
-    (local.set $i 0)
-    ;;($print "starting\n")
+  (func $main
+    (LET $i 0
+         $nbuf (STATIC_ARRAY 10))
+    ($init_console)
     (loop $loop
-      ($fb_set_color 15 0)
-      ($fb_move_cursor 0 $i)
-      ($fb_write "--> ")
-      ($fb_set_color $i 0)
-      ;;($fb_put_xy (CHR "X") 20 $i)
-      ($fb_write "X")
-      (local.set $i (i32.add $i 1))
+      (drop ($itoa $i $nbuf))
+      ($draw $nbuf 1 $i 7)
+      ($draw "-->" 4 $i 7)
+      ($draw "X" 8 $i $i)
+      (local.set $i (i32.add 1 $i))
       (br_if $loop (i32.lt_s $i 16))
     )
-    (loop $loop (br $loop))
-    0
+    ($draw "'q' to quit" 10 20 2)
+    (loop $loop
+      (br_if $loop (i32.ne (global.get $KEY_Q) ($readch)))
+    )
+    ($term_console)
   )
 
   (export "_main" (func $main))
