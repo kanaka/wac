@@ -102,6 +102,12 @@ typedef struct Memory {
     uint8_t    *bytes;    // memory area
 } Memory;
 
+typedef struct Export {
+    uint32_t    external_kind;
+    char       *export_name;
+    void       *value;
+} Export;
+
 typedef struct Options {
     // when true: host memory addresses will be outside allocated memory area
     // so do not do bounds checking
@@ -141,6 +147,9 @@ typedef struct Module {
     uint32_t    global_count;   // number of globals
     StackValue *globals;        // globals
 
+    uint32_t    export_count;   // number of exports
+    Export     *exports;
+
     // Runtime state
     uint32_t    pc;                // program counter
     int         sp;                // operand stack pointer
@@ -162,7 +171,7 @@ void (*setup_thunk_in(uint32_t fidx))();
 void setup_call(Module *m, uint32_t fidx);
 bool interpret(Module *m);
 
-uint32_t get_export_fidx(Module *m, char *name);
+void *get_export(Module *m, char *name, uint32_t kind);
 Module *load_module(uint8_t *bytes, uint32_t byte_count, Options options);
 bool invoke(Module *m, uint32_t fidx);
 

@@ -89,7 +89,7 @@ void parse_args(Module *m, Type *type, int argc, char **argv) {
 
 int main(int argc, char **argv) {
     char     *mod_path;
-    int       fidx = 0, res = 0;
+    int       res = 0;
     uint8_t  *bytes = NULL;
     int       byte_count;
     int       optidx, repl = 0;
@@ -155,16 +155,15 @@ int main(int argc, char **argv) {
         m->fp = -1;
         m->csp = -1;
 
-        fidx = get_export_fidx(m, argv[optidx]);
-        if (fidx == -1) {
+        Block *func = get_export(m, argv[optidx], KIND_FUNCTION);
+        if (!func) {
             error("no exported function named '%s'\n", argv[optidx]);
             if (repl) { continue; }
             return 1;
         }
-        Type *type = m->functions[fidx].type;
-        parse_args(m, type, argc-optidx-1, argv+optidx+1);
-        warn("Running '%s' function 0x%x ('%s')\n", m->path, fidx, entry);
-        res = invoke(m, fidx);
+        parse_args(m, func->type, argc-optidx-1, argv+optidx+1);
+        warn("Running '%s' function 0x%x ('%s')\n", m->path, func->fidx, entry);
+        res = invoke(m, func->fidx);
         if (res) {
             if (m->sp >= 0) {
                 printf("%s\n", value_repr(&m->stack[m->sp]));

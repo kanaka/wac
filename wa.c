@@ -1427,16 +1427,16 @@ void run_init_expr(Module *m, uint8_t type, uint32_t *pc) {
 // Public API
 //
 
-uint32_t get_export_fidx(Module *m, char *name) {
-    // Find name function index
-    for (uint32_t f=0; f<m->function_count; f++) {
-        char *fname = m->functions[f].export_name;
-        if (!fname) { continue; }
-        if (strncmp(name, fname, 1024) == 0) {
-            return f;
+void *get_export(Module *m, char *name, uint32_t kind) {
+    // Find export index by name and return the value
+    for (uint32_t e=0; e<m->export_count; e++) {
+        char *ename = m->exports[e].export_name;
+        if (!ename) { continue; }
+        if (strncmp(name, ename, 1024) == 0) {
+            return m->exports[e].value;
         }
     }
-    return -1;
+    return NULL;
 }
 
 Module *load_module(uint8_t *bytes, uint32_t byte_count, Options options) {
@@ -1534,13 +1534,13 @@ Module *load_module(uint8_t *bytes, uint32_t byte_count, Options options) {
                 uint8_t content_type = 0, mutability;
 
                 switch (external_kind) {
-                case 0x00: // Function
+                case KIND_FUNCTION:
                     type_index = read_LEB(bytes, &pos, 32); break;
-                case 0x01: // Table
+                case KIND_TABLE:
                     parse_table_type(m, &pos); break;
-                case 0x02: // Memory
+                case KIND_MEMORY:
                     parse_memory_type(m, &pos); break;
-                case 0x03: // Global
+                case KIND_GLOBAL:
                     content_type = read_LEB(bytes, &pos, 7);
                     // TODO: use mutability
                     mutability = read_LEB(bytes, &pos, 1);
@@ -1585,7 +1585,7 @@ Module *load_module(uint8_t *bytes, uint32_t byte_count, Options options) {
 
                 // Store in the right place
                 switch (external_kind) {
-                case 0x00:  // Function
+                case KIND_FUNCTION:
                     fidx = m->function_count;
                     m->import_count += 1;
                     m->function_count += 1;
@@ -1603,7 +1603,7 @@ Module *load_module(uint8_t *bytes, uint32_t byte_count, Options options) {
 
                     func->func_ptr = val;
                     break;
-                case 0x01:  // Table
+                case KIND_TABLE:
                     ASSERT(!m->table.entries,
                            "More than 1 table not supported\n");
                     Table *tval = val;
@@ -1616,7 +1616,7 @@ Module *load_module(uint8_t *bytes, uint32_t byte_count, Options options) {
                     m->table.maximum = tval->maximum;
                     m->table.entries = tval->entries;
                     break;
-                case 0x02:  // Memory
+                case KIND_MEMORY:
                     ASSERT(!m->memory.bytes,
                            "More than 1 memory not supported\n");
                     Memory *mval = val;
@@ -1628,7 +1628,7 @@ Module *load_module(uint8_t *bytes, uint32_t byte_count, Options options) {
                     m->memory.maximum = mval->maximum;
                     m->memory.bytes = mval->bytes;
                     break;
-                case 0x03:  // Global
+                case KIND_GLOBAL:
                     m->global_count += 1;
                     m->globals = arecalloc(m->globals,
                                            m->global_count-1, m->global_count,
@@ -1731,13 +1731,30 @@ Module *load_module(uint8_t *bytes, uint32_t byte_count, Options options) {
             for (uint32_t e=0; e<export_count; e++) {
                 char *name = read_string(bytes, &pos, NULL);
 
-                uint32_t kind = bytes[pos++];
+                uint32_t external_kind = bytes[pos++];
                 uint32_t index = read_LEB(bytes, &pos, 32);
-                if (kind != 0x00) {
-                    warn("  ignoring non-function export '%s'"
-                         " kind 0x%x index 0x%x\n",
-                         name, kind, index);
-                    continue;
+                uint32_t eidx = m->export_count;
+                m->export_count += 1;
+                m->exports = arecalloc(m->exports, eidx, m->export_count,
+                                        sizeof(Export), "exports");
+                m->exports[eidx].external_kind = external_kind;
+                m->exports[eidx].export_name = name;
+
+                switch (external_kind) {
+                case KIND_FUNCTION:
+                    m->exports[eidx].value = &m->functions[index];
+                    break;
+                case KIND_TABLE:
+                    ASSERT(index == 0, "Only 1 table in MVP");
+                    m->exports[eidx].value = &m->table;
+                    break;
+                case KIND_MEMORY:
+                    ASSERT(index == 0, "Only 1 memory in MVP");
+                    m->exports[eidx].value = &m->memory;
+                    break;
+                case KIND_GLOBAL:
+                    m->exports[eidx].value = &m->globals[index];
+                    break;
                 }
                 m->functions[index].export_name = name;
                 debug("  export: %s (0x%x)\n", name, index);

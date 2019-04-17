@@ -67,9 +67,9 @@ int main(int argc, char **argv) {
     init_thunk_in(m);
 
     // emscripten initialization
-    fidx = get_export_fidx(m, "__post_instantiate");
-    if (fidx != -1) {
-        res = invoke(m, fidx);
+    Block *func = get_export(m, "__post_instantiate", KIND_FUNCTION);
+    if (func) {
+        res = invoke(m, func->fidx);
     }
 
     // setup argc/argv
@@ -79,10 +79,10 @@ int main(int argc, char **argv) {
     m->stack[m->sp].value.uint32 = (uint32_t)(argv+1);
 
     // Invoke main/_main function and exit
-    fidx = get_export_fidx(m, "main");
-    if (fidx == -1) {
-        fidx = get_export_fidx(m, "_main");
-	if (fidx == -1) {
+    func = get_export(m, "main", KIND_FUNCTION);
+    if (!func) {
+        func = get_export(m, "_main", KIND_FUNCTION);
+	if (!func) {
 	    FATAL("no exported function named 'main' or '_main'\n");
 	}
     }
