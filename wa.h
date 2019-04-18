@@ -88,18 +88,19 @@ typedef struct Frame {
 ///
 
 typedef struct Table {
-    uint8_t     elem_type; // type of entries (only ANYFUNC in MVP)
-    uint32_t    initial;   // initial table size
-    uint32_t    maximum;   // maximum table size
-    uint32_t    size;      // current table size
+    uint8_t     elem_type;   // type of entries (only ANYFUNC in MVP)
+    uint32_t    initial;     // initial table size
+    uint32_t    maximum;     // maximum table size
+    uint32_t    size;        // current table size
     uint32_t   *entries;
 } Table;
 
 typedef struct Memory {
-    uint32_t    initial;  // initial size (64K pages)
-    uint32_t    maximum;  // maximum size (64K pages)
-    uint32_t    pages;    // current size (64K pages)
-    uint8_t    *bytes;    // memory area
+    uint32_t    initial;     // initial size (64K pages)
+    uint32_t    maximum;     // maximum size (64K pages)
+    uint32_t    pages;       // current size (64K pages)
+    uint8_t    *bytes;       // memory area
+    char       *export_name; // when exported
 } Memory;
 
 typedef struct Export {

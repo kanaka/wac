@@ -4,19 +4,21 @@ A Minimal WebAssembly interpreter written in C. Supports the
 WebAssembly MVP (minimum viable product) version of the WebAssembly
 specification.
 
-There are two different builds of wac:
+There are three different builds of wac:
 
 * **wac**: (WebAssembly in C) Minimal client with an interactive REPL
   mode. Designed to run standalone wasm files compiled with
   `wat2wasm` or `wasm-as`. Passes most spec tests apart from some
   multi-module import/export tests.
+* **wax**: (WebAssembly in C with WASI) Client with WebAssembly System
+  Interface APIs (WASI).
 * **wace**: (WebAssembly in C with Emscripten) Client with host
   library/memory integration. Designed to run wasm code that has been
   built with Emscripten (using `-s SIDE_MODULE=1 -s LEGALIZE_JS_FFI=0`).
 
 ## Prerequisites
 
-To build wac and wace you need a 32-bit version of gcc and 32-bit
+To build wac/wax/wace you need a 32-bit version of gcc and 32-bit
 versions of SDL2 and libedit. On 64-bit Ubuntu/Debian these can be
 installed like this:
 
@@ -60,9 +62,9 @@ $ make examples_wat/arith.wasm
 Now load the compiled wasm file and invoke some functions:
 
 ```bash
-$./wac examples_wat/arith.wasm add 2 3
+$ ./wac examples_wat/arith.wasm add 2 3
 0x5:i32
-$./wac examples_wat/arith.wasm mul 7 8
+$ ./wac examples_wat/arith.wasm mul 7 8
 0x38:i32
 ```
 
@@ -76,6 +78,33 @@ $ ./wac --repl examples_wat/arith.wasm
 > div 13 4
 0x3:i32
 ```
+
+## wax usage
+
+Build wax:
+
+```bash
+$ make wax
+```
+
+Use `wasm-as` to compile a wat program that uses the WASI interface:
+
+```bash
+$ make examples_wat/echo.wasm
+```
+
+Now run the compiled wasm file. The program reads text from stdin and
+echos it to stdout until an EOF (Ctrl-D) is sent.
+
+```bash
+$ ./wax examples_wat/echo.wasm
+> foo
+foo
+> bar
+bar
+> <Ctrl-D>
+```
+
 
 ## wace usage
 

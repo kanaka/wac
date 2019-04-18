@@ -1439,6 +1439,13 @@ void *get_export(Module *m, char *name, uint32_t kind) {
     return NULL;
 }
 
+Memory *get_export_memory(Module *m, char *name) {
+    if (strncmp(name, m->memory.export_name, 1024) == 0) {
+        return &m->memory;
+    }
+    return NULL;
+}
+
 Module *load_module(uint8_t *bytes, uint32_t byte_count, Options options) {
     uint8_t   vt;
     uint32_t  pos = 0, word;
@@ -1756,7 +1763,6 @@ Module *load_module(uint8_t *bytes, uint32_t byte_count, Options options) {
                     m->exports[eidx].value = &m->globals[index];
                     break;
                 }
-                m->functions[index].export_name = name;
                 debug("  export: %s (0x%x)\n", name, index);
             }
             break;

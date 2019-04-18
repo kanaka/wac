@@ -23,29 +23,32 @@ void thunk_out(Module *m, uint32_t fidx) {
     }
 
     switch (type->mask) {
-    case 0x800       : THUNK_OUT_0(m, func, 0);              break;
-    case 0x8001      : THUNK_OUT_1(m, func, 0, i);           break;
-    case 0x80011     : THUNK_OUT_2(m, func, 0, i,i);         break;
-    case 0x800111    : THUNK_OUT_3(m, func, 0, i,i,i);       break;
-    case 0x8001111   : THUNK_OUT_4(m, func, 0, i,i,i,i);     break;
-    case 0x810       : THUNK_OUT_0(m, func, i);              break;
-    case 0x8101      : THUNK_OUT_1(m, func, i, i);           break;
-    case 0x81011     : THUNK_OUT_2(m, func, i, i,i);         break;
-    case 0x810111    : THUNK_OUT_3(m, func, i, i,i,i);       break;
-    case 0x8101111   : THUNK_OUT_4(m, func, i, i,i,i,i);     break;
-    case 0x81011111  : THUNK_OUT_5(m, func, i, i,i,i,i,i);   break;
-    case 0x8003      : THUNK_OUT_1(m, func, 0, f);           break;
-    case 0x80033     : THUNK_OUT_2(m, func, 0, f,f);         break;
-    case 0x800333    : THUNK_OUT_3(m, func, 0, f,f,f);       break;
-    case 0x8003333   : THUNK_OUT_4(m, func, 0, f,f,f,f);     break;
-    case 0x8303      : THUNK_OUT_1(m, func, f, f);           break;
-    case 0x8004      : THUNK_OUT_1(m, func, 0, F);           break;
-    case 0x80044     : THUNK_OUT_2(m, func, 0, F,F);         break;
-    case 0x800444    : THUNK_OUT_3(m, func, 0, F,F,F);       break;
-    case 0x8004444   : THUNK_OUT_4(m, func, 0, F,F,F,F);     break;
-    case 0x800444444 : THUNK_OUT_6(m, func, 0, F,F,F,F,F,F); break;
-    case 0x8103      : THUNK_OUT_1(m, func, i, f);           break;
-    case 0x8404      : THUNK_OUT_1(m, func, F, F);           break;
+    case 0x800          : THUNK_OUT_0(m, func, 0);              break;
+    case 0x8001         : THUNK_OUT_1(m, func, 0, i);           break;
+    case 0x80011        : THUNK_OUT_2(m, func, 0, i,i);         break;
+    case 0x800111       : THUNK_OUT_3(m, func, 0, i,i,i);       break;
+    case 0x8001111      : THUNK_OUT_4(m, func, 0, i,i,i,i);     break;
+    case 0x810          : THUNK_OUT_0(m, func, i);              break;
+    case 0x8101         : THUNK_OUT_1(m, func, i, i);           break;
+    case 0x81011        : THUNK_OUT_2(m, func, i, i,i);         break;
+    case 0x810111       : THUNK_OUT_3(m, func, i, i,i,i);       break;
+    case 0x8101111      : THUNK_OUT_4(m, func, i, i,i,i,i);     break;
+    case 0x81011111     : THUNK_OUT_5(m, func, i, i,i,i,i,i);   break;
+    case 0x8003         : THUNK_OUT_1(m, func, 0, f);           break;
+    case 0x80033        : THUNK_OUT_2(m, func, 0, f,f);         break;
+    case 0x800333       : THUNK_OUT_3(m, func, 0, f,f,f);       break;
+    case 0x8003333      : THUNK_OUT_4(m, func, 0, f,f,f,f);     break;
+    case 0x8303         : THUNK_OUT_1(m, func, f, f);           break;
+    case 0x8004         : THUNK_OUT_1(m, func, 0, F);           break;
+    case 0x80044        : THUNK_OUT_2(m, func, 0, F,F);         break;
+    case 0x800444       : THUNK_OUT_3(m, func, 0, F,F,F);       break;
+    case 0x8004444      : THUNK_OUT_4(m, func, 0, F,F,F,F);     break;
+    case 0x800444444    : THUNK_OUT_6(m, func, 0, F,F,F,F,F,F); break;
+    case 0x8002         : THUNK_OUT_1(m, func, 0, I);           break;
+    case 0x8103         : THUNK_OUT_1(m, func, i, f);           break;
+    case 0x810121       : THUNK_OUT_3(m, func, i, i,I,i);       break;
+    case 0x8404         : THUNK_OUT_1(m, func, F, F);           break;
+    case 0x810111112211 : THUNK_OUT_9(m, func, i, i,i,i,i,i,I,I,i,i); break;
     // TODO: casting this can truncate the top of the mask
     default: FATAL("unsupported thunk_out mask 0x%x\n", (unsigned int)type->mask);
     }

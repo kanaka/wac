@@ -32,6 +32,7 @@ ifeq (libc,$(PLATFORM))
     CFLAGS += -DUSE_READLINE=1
   endif
   WAC_LIBS = m dl $(RL_LIBRARY)
+  WAX_LIBS = m dl
   WACE_LIBS = m dl $(RL_LIBRARY)
   ifneq (,$(strip $(USE_SDL)))
     WACE_LIBS += SDL2 SDL2_image GL glut
@@ -45,11 +46,12 @@ endif
 endif
 
 WAC_LIBS += $(EXTRA_WAC_LIBS)
+WAX_LIBS += $(EXTRA_WAX_LIBS)
 WACE_LIBS += $(EXTRA_WACE_LIBS)
 
 # Basic build rules
 .PHONY:
-all: wac wace
+all: wac wax wace
 
 %.a: %.o
 	ar rcs $@ $^
@@ -63,6 +65,7 @@ wa.o: wa.h util.h platform.h
 thunk.o: wa.h thunk.h
 wa.a: util.o thunk.o platform_$(PLATFORM).o
 wac: wa.a wac.o
+wax: wa.a wasi.o wax.o
 wace: wa.a wace.o
 
 #
@@ -72,13 +75,16 @@ ifeq (libc,$(PLATFORM)) # libc Platform
 wac:
 	$(CC) -rdynamic -Wl,--no-as-needed -o $@ \
 	    -Wl,--start-group $^ -Wl,--end-group $(foreach l,$(WAC_LIBS),-l$(l))
+wax:
+	$(CC) -rdynamic -Wl,--no-as-needed -o $@ \
+	    -Wl,--start-group $^ -Wl,--end-group $(foreach l,$(WAX_LIBS),-l$(l))
 wace: wace_emscripten.o
 	$(CC) -rdynamic -Wl,--no-as-needed -o $@ \
 	    -Wl,--start-group $^ -Wl,--end-group $(foreach l,$(WACE_LIBS),-l$(l))
 
 else  # fooboot OS platform
 
-  FOO_TARGETS = wac wace
+  FOO_TARGETS = wac wax wace
   include fooboot/Makefile
 
 wace: wace_fooboot.o
@@ -87,7 +93,7 @@ endif
 
 .PHONY:
 clean::
-	rm -f *.o *.a *.d wac wace wace-sdl.c \
+	rm -f *.o *.a *.d wac wax wace wace-sdl.c \
 	    lib/*.o lib/*.d kernel/*.o kernel/*.d \
 	    examples_c/*.js examples_c/*.html \
 	    examples_c/*.wasm examples_c/*.wat \

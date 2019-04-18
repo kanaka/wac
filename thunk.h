@@ -71,6 +71,10 @@
     TH_RES_##R ((TH_C_##R (*)(TH_C_##A,TH_C_##B,TH_C_##C,TH_C_##D,TH_C_##E,TH_C_##F))FN->func_ptr)(TH_SP(M,-5,A),TH_SP(M,-4,B),TH_SP(M,-3,C),TH_SP(M,-2,D),TH_SP(M,-1,E),TH_SP(M,+0,F)); \
     M->sp += -6 + TH_RCNT_##R; TH_OUT_RET_##R(M); \
 }
+#define THUNK_OUT_9(M,FN,R,A,B,C,D,E,F,G,H,I) { \
+    TH_RES_##R ((TH_C_##R (*)(TH_C_##A,TH_C_##B,TH_C_##C,TH_C_##D,TH_C_##E,TH_C_##F,TH_C_##G,TH_C_##H,TH_C_##I))FN->func_ptr)(TH_SP(M,-8,A),TH_SP(M,-7,B),TH_SP(M,-6,C),TH_SP(M,-5,D),TH_SP(M,-4,E),TH_SP(M,-3,F),TH_SP(M,-2,G),TH_SP(M,-1,H),TH_SP(M,+0,I)); \
+    M->sp += -9 + TH_RCNT_##R; TH_OUT_RET_##R(M); \
+}
 
 #define THUNK_IN_FN_0(M,R) \
     TH_C_##R thunk_in_##R##_0() { \
