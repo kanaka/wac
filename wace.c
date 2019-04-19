@@ -31,7 +31,7 @@ void usage(char *prog) {
 
 int main(int argc, char **argv) {
     char     *mod_path;
-    int       fidx = 0, res = 0;
+    int       res = 0;
     uint8_t  *bytes = NULL;
     int       byte_count;
 
@@ -86,7 +86,7 @@ int main(int argc, char **argv) {
 	    FATAL("no exported function named 'main' or '_main'\n");
 	}
     }
-    res = invoke(m, fidx);
+    res = invoke(m, func->fidx);
 
     if (!res) {
         error("Exception: %s\n", exception);
