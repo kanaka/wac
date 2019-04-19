@@ -2,9 +2,12 @@
 *.a
 *.d
 wac
+wax
 wace
 *.mem_fs_files.s
 *.syms.c
+examples_c/hello_sdl
+examples_c/triangle
 examples_c/*.js
 examples_c/*.html
 */*.wasm

@@ -16,7 +16,7 @@ uint64_t read_LEB_(uint8_t *bytes, uint32_t *pos, uint32_t maxbits, bool sign) {
     uint32_t shift = 0;
     uint32_t bcnt = 0;
     uint32_t startpos = *pos;
-    uint64_t  byte;
+    uint64_t byte;
 
     while (true) {
         byte = bytes[*pos];

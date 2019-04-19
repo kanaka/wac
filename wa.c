@@ -379,7 +379,7 @@ void skip_immediates(uint8_t *bytes, uint32_t *pos) {
         read_LEB(bytes, pos, 32); break;
     // varuint32 + varuint1
     case 0x11:            // call_indirect
-        read_LEB(bytes, pos, 1); read_LEB(bytes, pos, 32); break;
+        read_LEB(bytes, pos, 32); read_LEB(bytes, pos, 1); break;
     // varint64
     case 0x42:            // i64.const
         read_LEB(bytes, pos, 64); break;
