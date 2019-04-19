@@ -29,7 +29,7 @@ void usage(char *prog) {
 /////////////////////////////////////////////////////////
 // Command line
 
-int main(int argc, char **argv) {
+int main(int argc, char **argv, char **envp) {
     char     *mod_path;
     int       res = 0;
     uint8_t  *bytes = NULL;
@@ -62,7 +62,7 @@ int main(int argc, char **argv) {
 
     Memory *mem = get_export(m, "memory", KIND_MEMORY);
     if (!mem) { FATAL("no exported memory named 'memory'\n"); }
-    init_wasi(mem, argc-1, argv+1);
+    init_wasi(mem, argc-1, argv+1, envp);
 
     // Invoke main/_main function and exit
     Block *func = get_export(m, "_start", KIND_FUNCTION);
