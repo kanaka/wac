@@ -6,7 +6,7 @@
 
 #include "util.h"
 #include "wa.h"
-#include "mmap_file.h"
+#include "platform.h"
 #include "wasi.h"
 
 void _spectest__print_(uint32_t val) {
