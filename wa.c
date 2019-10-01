@@ -887,7 +887,7 @@ bool interpret(Module *m) {
             m->memory.bytes = arecalloc(m->memory.bytes,
                                         prev_pages*PAGE_SIZE,
                                         m->memory.pages*PAGE_SIZE,
-                                        sizeof(uint32_t),
+                                        sizeof(uint8_t),
                                         "Module->memory.bytes");
             continue;
 
