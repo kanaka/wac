@@ -33,7 +33,7 @@ void *arecalloc(void *ptr, size_t old_nmemb, size_t nmemb,
 }
 
 //
-// Some extra lirary routines
+// Some extra library routines
 //
 
 // open and mmap a file
