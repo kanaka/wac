@@ -36,6 +36,10 @@ void *arecalloc(void *ptr, size_t old_nmemb, size_t nmemb,
 // Some extra lirary routines
 //
 
+int printline(const char *s) {
+    return fputs(s, stdout);
+}
+
 // open and mmap a file
 uint8_t *mmap_file(char *path, int *len) {
     int          fd;
