@@ -9,6 +9,8 @@
 #include <sys/stat.h>
 #include <dlfcn.h>
 
+#include <time.h>
+
 #include "util.h"
 
 // Assert calloc
@@ -38,6 +40,11 @@ void *arecalloc(void *ptr, size_t old_nmemb, size_t nmemb,
 
 int printline(const char *s) {
     return fputs(s, stdout);
+}
+
+int get_time_ms() {
+    time_t current_time = time(NULL);  // Get the current epoch time
+    return (int32_t)current_time;
 }
 
 // open and mmap a file

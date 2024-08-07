@@ -72,15 +72,17 @@ wace: wa.a wace.o
 # Platform
 #
 ifeq (libc,$(PLATFORM)) # libc Platform
-wac:
+wac: platform_readline.o
 	$(CC) -rdynamic -Wl,--no-as-needed -o $@ \
-	    -Wl,--start-group $^ -Wl,--end-group $(foreach l,$(WAC_LIBS),-l$(l))
+	    -Wl,--start-group $^ -Wl,--end-group $(foreach l,$(WAC_LIBS),-l$(l)) \
+	    -Wl,--wrap=readline
 wax:
 	$(CC) -rdynamic -Wl,--no-as-needed -o $@ \
 	    -Wl,--start-group $^ -Wl,--end-group $(foreach l,$(WAX_LIBS),-l$(l))
-wace: wace_emscripten.o
+wace: wace_emscripten.o platform_readline.o
 	$(CC) -rdynamic -Wl,--no-as-needed -o $@ \
-	    -Wl,--start-group $^ -Wl,--end-group $(foreach l,$(WACE_LIBS),-l$(l))
+	    -Wl,--start-group $^ -Wl,--end-group $(foreach l,$(WACE_LIBS),-l$(l)) \
+	    -Wl,--wrap=readline
 
 else  # fooboot OS platform
 
