@@ -23,12 +23,12 @@
       (loop $loop
         (drop (call $fd_write (i32.const 1) (i32.const 0) (i32.const 1) (i32.const 256)))
         (local.set $ret (call $fd_read (i32.const 0) (i32.const 16) (i32.const 1) (i32.const 256)))
-        (if (i32.eqz (i32.load (i32.const 256)) (i32.const 0)) (br $done))
-        (drop (call $fd_write (i32.const 0) (i32.const 16) (i32.const 1) (i32.const 256)))
+        (if (i32.eqz (i32.load (i32.const 256))) (br $done))
+        (drop (call $fd_write (i32.const 1) (i32.const 16) (i32.const 1) (i32.const 256)))
         (br $loop)
       )
     )
   )
 
-  (export "_start" $main)
+  (export "_start" (func $main))
 )
