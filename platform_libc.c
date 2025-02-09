@@ -35,7 +35,7 @@ void *arecalloc(void *ptr, size_t old_nmemb, size_t nmemb,
 }
 
 //
-// Some extra lirary routines
+// Some extra library routines
 //
 
 int printline(const char *s) {
